@@ -1,21 +1,21 @@
+from __future__ import annotations
+
 import json
 import os
 import uuid
-from pprint import pprint
+from pathlib import Path
+from pprint import pformat, pprint
 
 from notion_client import Client
+from typer import Argument, Option, run
 
 
 notion_token = os.environ["NOTION_TOKEN"]
-notion_page_id = ""
-notion_database_id = ""
 
 
-def write_dict_to_file_as_json(content, file_name):
-    content_as_json_str = json.dumps(content)
-
+def write_dict_to_file_as_json(content: dict, file_name: Path | str):
     with open(file_name, "w") as f:
-        f.write(content_as_json_str)
+        f.write(json.dumps(content, ensure_ascii=False, indent=4, sort_keys=True))
 
 
 def read_text(client, page_id):
@@ -32,7 +32,10 @@ def safe_get(data, dot_chained_keys):
     for key in keys:
         try:
             if isinstance(data, list):
-                data = data[int(key)]
+                try:
+                    data = data[int(key)]
+                except ValueError as e:
+                    raise ValueError(f"Key {key} is not an integer with list data: \n{pformat(data)}")
             else:
                 data = data[key]
         except (KeyError, TypeError, IndexError):
@@ -40,28 +43,29 @@ def safe_get(data, dot_chained_keys):
     return data
 
 
-def main():
+def main(notion_database_id: str = Argument(..., help="Notion database ID")):
     client = Client(auth=notion_token)
 
     db_info = client.databases.retrieve(database_id=notion_database_id)
-
-    write_dict_to_file_as_json(db_info, "db_info.json")
+    write_dict_to_file_as_json(db_info, "db_info.json")  # type: ignore
 
     db_rows = client.databases.query(database_id=notion_database_id)
-
-    write_dict_to_file_as_json(db_rows, "db_rows.json")
+    write_dict_to_file_as_json(db_rows, "db_rows.json")  # type: ignore
 
     simple_rows = []
-
-    for row in db_rows["results"]:
-        user_id = safe_get(row, "properties.UserId.title.0.plain_text")
-        date = safe_get(row, "properties.Date.date.start")
-        event = safe_get(row, "properties.Event.select.name")
-
-        simple_rows.append({"user_id": user_id, "date": date, "event": event})
-
-    write_dict_to_file_as_json(simple_rows, "simple_rows.json")
+    for row in db_rows["results"]:  # type: ignore
+        published = safe_get(row, "properties.Published.date.start")
+        status = safe_get(row, "properties.Status.select.name")
+        authors = safe_get(row, "properties.Authors.rich_text.0.plain_text")
+        simple_rows.append(
+            {
+                "published": published,
+                "status": status,
+                "authors": authors,
+            }
+        )
+    write_dict_to_file_as_json(simple_rows, "simple_rows.json")  # type: ignore
 
 
 if __name__ == "__main__":
-    main()
+    run(main)
