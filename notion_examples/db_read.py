@@ -43,14 +43,27 @@ def safe_get(data, dot_chained_keys):
     return data
 
 
-def main(notion_database_id: str = Argument(..., help="Notion database ID")):
+def main(
+    notion_database_id: str = Argument(..., help="Notion database ID"),
+    verbose: bool = Option(True, help="Verbose"),
+):
     client = Client(auth=notion_token)
+    OUT_DIR = Path("output")
+    OUT_DIR.mkdir(exist_ok=True)
 
     db_info = client.databases.retrieve(database_id=notion_database_id)
-    write_dict_to_file_as_json(db_info, "db_info.json")  # type: ignore
+    if verbose:
+        print("-" * 120)
+        pprint(db_info)
+        print("-" * 120)
+    write_dict_to_file_as_json(db_info, Path(OUT_DIR / "db_info.json"))  # type: ignore
 
     db_rows = client.databases.query(database_id=notion_database_id)
-    write_dict_to_file_as_json(db_rows, "db_rows.json")  # type: ignore
+    if verbose:
+        print("-" * 120)
+        pprint(db_rows)
+        print("-" * 120)
+    write_dict_to_file_as_json(db_rows, Path(OUT_DIR / "db_rows.json"))  # type: ignore
 
     simple_rows = []
     for row in db_rows["results"]:  # type: ignore
@@ -64,7 +77,11 @@ def main(notion_database_id: str = Argument(..., help="Notion database ID")):
                 "authors": authors,
             }
         )
-    write_dict_to_file_as_json(simple_rows, "simple_rows.json")  # type: ignore
+    if verbose:
+        print("-" * 120)
+        pprint(simple_rows)
+        print("-" * 120)
+    write_dict_to_file_as_json(simple_rows, Path(OUT_DIR / "db_simple_rows.json"))  # type: ignore
 
 
 if __name__ == "__main__":
