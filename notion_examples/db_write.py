@@ -1,11 +1,12 @@
 import json
+import os
 import uuid
 from pprint import pprint
 
 from notion_client import Client
 
 
-notion_token = ""
+notion_token = os.environ["NOTION_TOKEN"]
 notion_page_id = ""
 notion_database_id = ""
 
