@@ -97,3 +97,4 @@ if __name__ == "__main__":
 
 # TODO
 # - [ ] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
+# - [ ] write abstract to entries as text
