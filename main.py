@@ -94,3 +94,6 @@ def clargs():
 if __name__ == "__main__":
     args = clargs()
     main(args.arxiv_list, args.max_results, add_topic_tag=args.add_topic_tag, add_arxiv_type=args.add_arxiv_type)
+
+# TODO
+# - [ ] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
