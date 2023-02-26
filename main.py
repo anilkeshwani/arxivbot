@@ -1,12 +1,33 @@
+#!/usr/bin/env python
+
 from __future__ import annotations
 
 import os
 from argparse import ArgumentParser
 from datetime import datetime
+from string import digits
+from urllib.parse import urlparse
 
 import arxiv
 from dotenv import load_dotenv
 from notion_client import Client
+
+
+def canonicalise_arxiv(arxiv_like: str) -> str:
+    """
+    Convert arXiv IDs and URLs to canonical-ish form usable by search_arxiv.
+    """
+    if arxiv_like.startswith("moz-extension"):
+        arxiv_like = urlparse(arxiv_like).query.split("=")[-1]
+    if arxiv_like.startswith("arXiv:"):
+        arxiv_like = arxiv_like[6:]
+    if arxiv_like.startswith("http"):
+        urlparse_result = urlparse(arxiv_like)
+        if not urlparse_result.netloc == "arxiv.org":
+            raise ValueError("URL does not point to arXiv")
+        return urlparse_result.path.strip("/").split("/")[-1].strip(".pdf")
+    else:
+        return arxiv_like.strip()
 
 
 def search_arxiv(
@@ -23,10 +44,11 @@ def search_arxiv(
     return search.results()
 
 
-def main(arxiv_id_list: list[str], max_results: int, add_topic_tag: bool = True, add_arxiv_type: bool = True):
+def main(arxiv_list: list[str], max_results: int, add_topic_tag: bool = True, add_arxiv_type: bool = True):
     load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
     notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
-    for arxiv_paper in search_arxiv(id_list=arxiv_id_list, max_results=max_results):
+    arxiv_list = [canonicalise_arxiv(arxiv_like) for arxiv_like in arxiv_list]
+    for arxiv_paper in search_arxiv(id_list=arxiv_list, max_results=max_results):
         new_arxiv_entry = {
             "Name": {"title": [{"text": {"content": arxiv_paper.title}}]},
             "Published": {"date": {"start": arxiv_paper.published.isoformat()}},
@@ -48,7 +70,7 @@ def main(arxiv_id_list: list[str], max_results: int, add_topic_tag: bool = True,
 
 def clargs():
     parser = ArgumentParser()
-    parser.add_argument("arxiv_id_list", type=str, nargs="+")
+    parser.add_argument("arxiv_list", type=str, nargs="+")
     parser.add_argument("--max_results", type=int, default=10**10)
     parser.add_argument("--add_topic_tag", type=bool, default=False)
     parser.add_argument("--add_arxiv_type", type=bool, default=False)
@@ -63,4 +85,4 @@ def clargs():
 
 if __name__ == "__main__":
     args = clargs()
-    main(args.arxiv_id_list, args.max_results, add_topic_tag=args.add_topic_tag, add_arxiv_type=args.add_arxiv_type)
+    main(args.arxiv_list, args.max_results, add_topic_tag=args.add_topic_tag, add_arxiv_type=args.add_arxiv_type)
