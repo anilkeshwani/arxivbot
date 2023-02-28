@@ -69,7 +69,13 @@ def check_row_exists(arxiv_like: str) -> bool:
     return len(rows["results"]) != 0
 
 
-def main(arxiv_list: list[str], max_results: int, add_topic_tag: bool = True, add_arxiv_type: bool = True):
+def main(
+    arxiv_list: list[str],
+    max_results: int,
+    add_abstract: bool = True,
+    add_topic_tag: bool = True,
+    add_arxiv_type: bool = True,
+):
     load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
     notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
     database_id = os.environ["READING_LIST_DATABASE_ID"]
@@ -96,13 +102,30 @@ def main(arxiv_list: list[str], max_results: int, add_topic_tag: bool = True, ad
                 )
             if add_arxiv_type:
                 new_arxiv_entry.update({"Type": {"select": {"name": "arXiv"}, "type": "select"}})
-            notion.pages.create(parent={"database_id": database_id}, properties=new_arxiv_entry)
+            notion.pages.create(
+                parent={"database_id": database_id},
+                properties=new_arxiv_entry,
+                children=[
+                    {
+                        "object": "block",
+                        "type": "heading_2",
+                        "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Abstract"}}]},
+                    },
+                    {
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {"rich_text": [{"type": "text", "text": {"content": arxiv_paper.summary}}]},
+                    },
+                    {"object": "block", "type": "divider", "divider": {}},  # add a page divider below the abstract
+                ],
+            )
 
 
 def clargs():
     parser = ArgumentParser()
     parser.add_argument("arxiv_list", type=str, nargs="+")
     parser.add_argument("--max_results", type=int, default=10**10)
+    parser.add_argument("--add_abstract", type=bool, default=True)
     parser.add_argument("--add_topic_tag", type=bool, default=False)
     parser.add_argument("--add_arxiv_type", type=bool, default=False)
     """
@@ -116,7 +139,13 @@ def clargs():
 
 if __name__ == "__main__":
     args = clargs()
-    main(args.arxiv_list, args.max_results, add_topic_tag=args.add_topic_tag, add_arxiv_type=args.add_arxiv_type)
+    main(
+        args.arxiv_list,
+        args.max_results,
+        args.add_abstract,
+        add_topic_tag=args.add_topic_tag,
+        add_arxiv_type=args.add_arxiv_type,
+    )
 
 # TODO
 # - [ ] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
