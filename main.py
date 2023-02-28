@@ -52,28 +52,51 @@ def search_arxiv(
     return search.results()
 
 
+def check_row_exists(arxiv_like: str) -> bool:
+    """Check whether a row with the given arXiv ID already exists in the database.
+
+    Args:
+        arxiv_like (str): An arXiv ID or URL.
+
+    Returns:
+        tuple[bool, str]: Boolean indicating whether the row exists, and the normalized arXiv ID.
+    """
+    load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
+    notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
+    database_id = os.environ["READING_LIST_DATABASE_ID"]
+    arxiv_id = canonicalise_arxiv(arxiv_like)
+    rows = notion.databases.query(database_id=database_id, filter={"property": "Link", "url": {"equals": arxiv_like}})
+    return len(rows["results"]) != 0
+
+
 def main(arxiv_list: list[str], max_results: int, add_topic_tag: bool = True, add_arxiv_type: bool = True):
     load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
     notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
+    database_id = os.environ["READING_LIST_DATABASE_ID"]
     arxiv_list = [canonicalise_arxiv(arxiv_like) for arxiv_like in arxiv_list]
     for arxiv_paper in search_arxiv(id_list=arxiv_list, max_results=max_results):
-        new_arxiv_entry = {
-            "Name": {"title": [{"text": {"content": arxiv_paper.title}}]},
-            "Published": {"date": {"start": arxiv_paper.published.isoformat()}},  # type: ignore
-            "Authors": {
-                "multi_select": [{"color": "default", "name": author.name} for author in arxiv_paper.authors],
-                "type": "multi_select",
-            },
-            "Link": {"type": "url", "url": arxiv_paper.entry_id},
-            "Added": {"date": {"start": datetime.now().isoformat()}},
-        }
-        if add_topic_tag:
-            new_arxiv_entry.update(
-                {"Topics": {"multi_select": [{"name": arxiv_paper.primary_category}], "type": "multi_select"}}
-            )
-        if add_arxiv_type:
-            new_arxiv_entry.update({"Type": {"select": {"name": "arXiv"}, "type": "select"}})
-        notion.pages.create(parent={"database_id": os.getenv("READING_LIST_DATABASE_ID")}, properties=new_arxiv_entry)
+        row_present = check_row_exists(arxiv_paper.entry_id)
+        if row_present:
+            print(f"Skipping {arxiv_paper.title} (URL: {arxiv_paper.entry_id}) as it already exists in the database.")
+            continue
+        else:
+            new_arxiv_entry = {
+                "Name": {"title": [{"text": {"content": arxiv_paper.title}}]},
+                "Published": {"date": {"start": arxiv_paper.published.isoformat()}},  # type: ignore
+                "Authors": {
+                    "multi_select": [{"color": "default", "name": author.name} for author in arxiv_paper.authors],
+                    "type": "multi_select",
+                },
+                "Link": {"type": "url", "url": arxiv_paper.entry_id},
+                "Added": {"date": {"start": datetime.now().isoformat()}},
+            }
+            if add_topic_tag:
+                new_arxiv_entry.update(
+                    {"Topics": {"multi_select": [{"name": arxiv_paper.primary_category}], "type": "multi_select"}}
+                )
+            if add_arxiv_type:
+                new_arxiv_entry.update({"Type": {"select": {"name": "arXiv"}, "type": "select"}})
+            notion.pages.create(parent={"database_id": database_id}, properties=new_arxiv_entry)
 
 
 def clargs():
