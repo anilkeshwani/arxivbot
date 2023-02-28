@@ -1,3 +1,4 @@
 arxiv==1.4.3
-requests==2.27.1
+notion_client==2.0.0
+python-dotenv==1.0.0
 typer==0.7.0
