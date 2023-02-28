@@ -98,7 +98,7 @@ def main(
             }
             if add_topic_tag:
                 new_arxiv_entry.update(
-                    {"Topics": {"multi_select": [{"name": arxiv_paper.primary_category}], "type": "multi_select"}}
+                    {"Tags": {"multi_select": [{"name": arxiv_paper.primary_category}], "type": "multi_select"}}
                 )
             if add_arxiv_type:
                 new_arxiv_entry.update({"Type": {"select": {"name": "arXiv"}, "type": "select"}})
