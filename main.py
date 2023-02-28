@@ -102,10 +102,8 @@ def main(
                 )
             if add_arxiv_type:
                 new_arxiv_entry.update({"Type": {"select": {"name": "arXiv"}, "type": "select"}})
-            notion.pages.create(
-                parent={"database_id": database_id},
-                properties=new_arxiv_entry,
-                children=[
+            if add_abstract:
+                children = [
                     {
                         "object": "block",
                         "type": "heading_2",
@@ -117,8 +115,12 @@ def main(
                         "paragraph": {"rich_text": [{"type": "text", "text": {"content": arxiv_paper.summary}}]},
                     },
                     {"object": "block", "type": "divider", "divider": {}},  # add a page divider below the abstract
-                ],
-            )
+                ]
+            else:  # if we're not adding the abstract, we still need to pass an empty list to the children argument
+                children = []
+
+            # create the new row in the database
+            notion.pages.create(parent={"database_id": database_id}, properties=new_arxiv_entry, children=children)
 
 
 def clargs():
