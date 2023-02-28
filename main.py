@@ -59,7 +59,7 @@ def main(arxiv_list: list[str], max_results: int, add_topic_tag: bool = True, ad
     for arxiv_paper in search_arxiv(id_list=arxiv_list, max_results=max_results):
         new_arxiv_entry = {
             "Name": {"title": [{"text": {"content": arxiv_paper.title}}]},
-            "Published": {"date": {"start": arxiv_paper.published.isoformat()}},
+            "Published": {"date": {"start": arxiv_paper.published.isoformat()}},  # type: ignore
             "Authors": {
                 "multi_select": [{"color": "default", "name": author.name} for author in arxiv_paper.authors],
                 "type": "multi_select",
