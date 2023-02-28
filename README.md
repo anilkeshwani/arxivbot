@@ -1,6 +1,9 @@
 # arxivbot
 
 **TODO**
+- [ ] provide cleaner abstracts
+  - [ ] parse URLs and hyperlink them
+  - [ ] parse latex and render it as an equation
 - [ ] provide integration via Telegram so that users can send their link to an authenticated channel and GitHub actions will trigger uploads nightly or, better, in response to a trigger triggered by Telegram
 - [x] write abstract to entries as text
 - [x] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
