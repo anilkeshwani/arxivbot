@@ -1,6 +1,7 @@
 # arxivbot
 
-**TODO**
+## Feature Requests 
+
 - [ ] provide cleaner abstracts
   - [ ] parse URLs and hyperlink them
   - [ ] parse latex and render it as an equation
@@ -8,7 +9,11 @@
 - [x] write abstract to entries as text
 - [x] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
 
----
+### Credentials
+
+_credentials_template.env_ is a copy of (template for) a file, _credentials.env_, which should be placed in the same (top-level) directory with your Notion Integration token for authenticating. This is more convenient that exporting it each time you use the tool. 
+
+### Resources
 
 - arxiv
   - http://lukasschwab.me/arxiv.py/index.html
