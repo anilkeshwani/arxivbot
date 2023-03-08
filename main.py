@@ -112,7 +112,9 @@ def main(
                     {
                         "object": "block",
                         "type": "paragraph",
-                        "paragraph": {"rich_text": [{"type": "text", "text": {"content": arxiv_paper.summary}}]},
+                        "paragraph": {
+                            "rich_text": [{"type": "text", "text": {"content": arxiv_paper.summary.replace("\n", " ")}}]
+                        },
                     },
                     {"object": "block", "type": "divider", "divider": {}},  # add a page divider below the abstract
                 ]
