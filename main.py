@@ -77,6 +77,7 @@ def main(
     add_arxiv_type: bool = True,
 ):
     load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
+    load_dotenv("credentials.env")
     notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
     database_id = os.environ["READING_LIST_DATABASE_ID"]
     arxiv_list = [canonicalise_arxiv(arxiv_like) for arxiv_like in arxiv_list]
