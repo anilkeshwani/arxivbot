@@ -25,6 +25,8 @@ def canonicalise_arxiv(arxiv_like: str) -> str:
     - https://arxiv.org/pdf/1905.00001v1.pdf
     - moz-extension://cf2764a6-e6bc-4c15-93f7-ff7531c62f1c/pdfviewer.html?target=https://arxiv.org/pdf/2204.03067.pdf
     """
+    if arxiv_like == "":
+        raise ValueError("Got empty string for arxiv_like.")
     if arxiv_like.startswith("moz-extension"):
         arxiv_like = urlparse(arxiv_like).query.split("=")[-1]
     if arxiv_like.startswith("arXiv:"):
