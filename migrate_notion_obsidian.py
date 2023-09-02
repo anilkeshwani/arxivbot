@@ -18,7 +18,7 @@ import arxiv
 import yaml
 from pathvalidate import sanitize_filename
 
-from main import canonicalise_arxiv
+from notion import canonicalise_arxiv
 from utils import inflect_day
 
 
