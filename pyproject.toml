@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arxivbot"
+authors = [{ name = "Anil Keshwani", email = "anilkeshwani@hotmail.com" }]
+description = "A minimal arXiv clipper"
+license = "GPL-3.0-only"
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["dependencies", "version"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools_scm]
+
+[project.scripts]
+obsidian-import = "arxivbot.obsidian_importer:main"

@@ -10,7 +10,7 @@ import arxiv
 from dotenv import load_dotenv
 from notion_client import Client
 
-from utils import canonicalise_arxiv
+from arxivbot.utils import canonicalise_arxiv
 
 
 def search_arxiv(

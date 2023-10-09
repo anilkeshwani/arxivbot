@@ -15,8 +15,8 @@ from urllib.parse import urlparse
 
 import arxiv
 
-from constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR
-from utils import canonicalise_arxiv, write_obsidian_paper
+from arxivbot.constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR
+from arxivbot.utils import canonicalise_arxiv, write_obsidian_paper
 
 
 LOGGER = logging.getLogger(__name__)
