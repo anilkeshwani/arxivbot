@@ -7,12 +7,12 @@ name = "arxivbot"
 authors = [{ name = "Anil Keshwani", email = "anilkeshwani@hotmail.com" }]
 description = "A minimal arXiv clipper"
 license = { file = "LICENSE" }
-readme = "README.md"
 requires-python = ">=3.9"
-dynamic = ["dependencies", "version"]
+dynamic = ["dependencies", "version", "readme"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+readme = { file = ["README.rst"] }
 
 [tool.setuptools_scm]
 
