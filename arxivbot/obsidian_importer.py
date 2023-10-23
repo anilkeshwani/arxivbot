@@ -69,6 +69,7 @@ def write_obsidian_paper(
     try:
         with open(obsidian_paper_path, "x") as f:
             f.write(obsidian_paper)
+            LOGGER.info(str(obsidian_paper_path))
     except FileExistsError as fee:
         LOGGER.info("Skipping. Paper already present in database:")
         LOGGER.info(str(obsidian_paper_path))
