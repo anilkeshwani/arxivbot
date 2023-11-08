@@ -31,11 +31,9 @@ def read_text(client, page_id):
 
 
 def create_simple_blocks_from_content(client, content):
-
     page_simple_blocks = []
 
     for block in content:
-
         block_id = block["id"]
         block_type = block["type"]
         has_children = block["has_children"]

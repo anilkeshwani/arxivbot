@@ -50,11 +50,9 @@ def safe_get(data, dot_chained_keys):
 
 
 def create_simple_blocks_from_content(client, content):
-
     page_simple_blocks = []
 
     for block in content:
-
         block_id = block["id"]
         block_type = block["type"]
         has_children = block["has_children"]
@@ -75,7 +73,6 @@ def create_simple_blocks_from_content(client, content):
 
 
 def write_row(client, database_id, user_id, event, date):
-
     client.pages.create(
         **{
             "parent": {"database_id": database_id},

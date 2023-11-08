@@ -1,6 +1,6 @@
 # arxivbot
 
-## Feature Requests 
+## Feature Requests
 
 - [ ] provide cleaner abstracts
   - [ ] parse URLs and hyperlink them
@@ -11,7 +11,7 @@
 
 ## Credentials
 
-_credentials_template.env_ is a copy of (template for) a file, _credentials.env_, which should be placed in the same (top-level) directory with your Notion Integration token for authenticating. This is more convenient that exporting it each time you use the tool. 
+_credentials_template.env_ is a copy of (template for) a file, _credentials.env_, which should be placed in the same (top-level) directory with your Notion Integration token for authenticating. This is more convenient that exporting it each time you use the tool.
 
 ## Resources
 
@@ -19,11 +19,11 @@ _credentials_template.env_ is a copy of (template for) a file, _credentials.env_
   - http://lukasschwab.me/arxiv.py/index.html
   - Result http://lukasschwab.me/arxiv.py/index.html#Result
   - Search http://lukasschwab.me/arxiv.py/index.html#Search
-- arxiv API 
+- arxiv API
   - https://info.arxiv.org/help/api/basics.html#quickstart
   - https://info.arxiv.org/help/api/user-manual.html#sort
   - https://info.arxiv.org/help/api/user-manual.html#python_simple_example
-  - 
+  -
 - https://www.notion.so/my-integrations
 - https://developers.notion.com/reference/update-a-database
 - what you actually want - to update or add a row of a database
