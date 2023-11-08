@@ -1,6 +1,4 @@
 from pathlib import Path
 
-
-# Obsidian-related
-OBSIDIAN_VAULT_DIR = Path("/Users/anilkeshwani/Desktop/journal/")
+OBSIDIAN_VAULT_DIR = Path("~Desktop/journal/").expanduser()
 PAPERS_DIR = OBSIDIAN_VAULT_DIR / "Papers"
