@@ -7,7 +7,7 @@ name = "arxivbot"
 authors = [{ name = "Anil Keshwani", email = "anilkeshwani@hotmail.com" }]
 description = "A minimal arXiv clipper"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dynamic = ["dependencies", "version", "readme"]
 
 [tool.setuptools.dynamic]
@@ -15,6 +15,15 @@ dependencies = { file = ["requirements.txt"] }
 readme = { file = ["README.rst"] }
 
 [tool.setuptools_scm]
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+lines_after_imports = 2
+force_alphabetical_sort_within_sections = true
 
 [project.scripts]
 obsidian-import = "arxivbot.obsidian_importer:main"
