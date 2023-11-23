@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 from argparse import ArgumentParser
 from datetime import datetime
@@ -11,7 +12,7 @@ import arxiv
 import yaml
 from pathvalidate import sanitize_filename
 
-from arxivbot.constants import PAPERS_DIR, PDFS_DIR
+from arxivbot.constants import PAPERS_DIR, PDFS_DIR, PDFS_INDEX, PDFS_INDEX_FIELD_NAMES, PDFS_INDEX_ID
 from arxivbot.utils import canonicalise_arxiv, inflect_day
 
 
@@ -87,6 +88,18 @@ def write_obsidian_paper(
         else:
             arxiv_paper.download_pdf(dirpath=obsidian_pdfs_dir, filename=pdf_filename)  # type: ignore
             LOGGER.info(str(pdf_path))
+
+        # add pdf to index as CSV row using csv module if not already present by checking entry_id
+        pdfs_index = list(csv.reader(open(PDFS_INDEX, "r"), delimiter="\t"))
+        assert pdfs_index[0] == PDFS_INDEX_FIELD_NAMES, "PDFs index header is incorrect. Check PDFS_INDEX_FIELD_NAMES."
+        if arxiv_paper.entry_id in [PDFS_INDEX_FIELD_NAMES.index(PDFS_INDEX_ID) for row in pdfs_index]:
+            LOGGER.info(f"Skipping addition of PDF to index ({PDFS_INDEX}). PDF already present in index.")
+        else:
+            current_time = datetime.now().isoformat()
+            fields = (arxiv_paper.entry_id, published, current_time, pdf_filename.removesuffix(".pdf"))
+            with open(PDFS_INDEX, "a") as f:
+                writer = csv.writer(f, delimiter="\t")
+                writer.writerow(fields)
     return obsidian_paper
 
 
