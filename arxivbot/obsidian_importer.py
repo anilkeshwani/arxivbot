@@ -11,7 +11,7 @@ import arxiv
 import yaml
 from pathvalidate import sanitize_filename
 
-from arxivbot.constants import PAPERS_DIR
+from arxivbot.constants import PAPERS_DIR, PDFS_DIR
 from arxivbot.utils import canonicalise_arxiv, inflect_day
 
 
@@ -45,6 +45,8 @@ def write_obsidian_paper(
     arxiv_paper: arxiv.arxiv.Result,
     notion_entry: dict | None,
     obsidian_papers_dir: Path,
+    obsidian_pdfs_dir: Path,
+    download_pdf: bool,
     log_fileexistserror: bool = False,
 ) -> str:
     MD_LINE_ENDING = "  \n"
@@ -75,6 +77,16 @@ def write_obsidian_paper(
         LOGGER.info(str(obsidian_paper_path))
         if log_fileexistserror:
             LOGGER.exception(fee)
+
+    if download_pdf:
+        pdf_filename = f"{filename}.pdf"
+        pdf_path = obsidian_pdfs_dir / pdf_filename  # co-opted from arxiv source code
+        if pdf_path.exists():
+            LOGGER.info("Skipping. PDF already present in database:")
+            LOGGER.info(str(pdf_path))
+        else:
+            arxiv_paper.download_pdf(dirpath=obsidian_pdfs_dir, filename=pdf_filename)  # type: ignore
+            LOGGER.info(str(pdf_path))
     return obsidian_paper
 
 
@@ -82,10 +94,11 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("id_list", type=str, nargs="+")
     parser.add_argument("--max_results", type=int, default=10**10)
+    parser.add_argument("--pdf", action="store_true")
     args = parser.parse_args()
     args.id_list = [canonicalise_arxiv(arxiv_id) for arxiv_id in args.id_list]
-    for arxiv_paper in arxiv.Search(**vars(args)).results():
-        write_obsidian_paper(arxiv_paper, None, PAPERS_DIR)
+    for arxiv_paper in arxiv.Search(id_list=args.id_list, max_results=args.max_results).results():
+        write_obsidian_paper(arxiv_paper, None, PAPERS_DIR, PDFS_DIR, args.pdf, False)
 
 
 if __name__ == "__main__":
