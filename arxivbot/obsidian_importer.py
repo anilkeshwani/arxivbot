@@ -100,6 +100,7 @@ def write_obsidian_paper(
             with open(PDFS_INDEX, "a") as f:
                 writer = csv.writer(f, delimiter="\t")
                 writer.writerow(fields)
+                f.write("\n")
     return obsidian_paper
 
 
