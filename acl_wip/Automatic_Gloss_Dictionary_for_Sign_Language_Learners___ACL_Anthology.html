@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<!-- saved from url=(0041)https://aclanthology.org/2022.acl-demo.8/ -->
+<html lang="en-us" data-darkreader-mode="dynamic" data-darkreader-scheme="dark">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <style class="darkreader darkreader--fallback" media="screen"></style>
+  <style class="darkreader darkreader--text" media="screen"></style>
+  <style class="darkreader darkreader--invert" media="screen">
+    .jfk-bubble.gtx-bubble,
+    .captcheck_answer_label>input+img,
+    span#closed_text>img[src^="https://www.gstatic.com/images/branding/googlelogo"],
+    span[data-href^="https://www.hcaptcha.com/"]>#icon,
+    #bit-notification-bar-iframe,
+    ::-webkit-calendar-picker-indicator {
+      filter: invert(100%) hue-rotate(180deg) contrast(90%) !important;
+    }
+  </style>
+  <style class="darkreader darkreader--inline" media="screen">
+    [data-darkreader-inline-bgcolor] {
+      background-color: var(--darkreader-inline-bgcolor) !important;
+    }
+
+    [data-darkreader-inline-bgimage] {
+      background-image: var(--darkreader-inline-bgimage) !important;
+    }
+
+    [data-darkreader-inline-border] {
+      border-color: var(--darkreader-inline-border) !important;
+    }
+
+    [data-darkreader-inline-border-bottom] {
+      border-bottom-color: var(--darkreader-inline-border-bottom) !important;
+    }
+
+    [data-darkreader-inline-border-left] {
+      border-left-color: var(--darkreader-inline-border-left) !important;
+    }
+
+    [data-darkreader-inline-border-right] {
+      border-right-color: var(--darkreader-inline-border-right) !important;
+    }
+
+    [data-darkreader-inline-border-top] {
+      border-top-color: var(--darkreader-inline-border-top) !important;
+    }
+
+    [data-darkreader-inline-boxshadow] {
+      box-shadow: var(--darkreader-inline-boxshadow) !important;
+    }
+
+    [data-darkreader-inline-color] {
+      color: var(--darkreader-inline-color) !important;
+    }
+
+    [data-darkreader-inline-fill] {
+      fill: var(--darkreader-inline-fill) !important;
+    }
+
+    [data-darkreader-inline-stroke] {
+      stroke: var(--darkreader-inline-stroke) !important;
+    }
+
+    [data-darkreader-inline-outline] {
+      outline-color: var(--darkreader-inline-outline) !important;
+    }
+
+    [data-darkreader-inline-stopcolor] {
+      stop-color: var(--darkreader-inline-stopcolor) !important;
+    }
+  </style>
+  <style class="darkreader darkreader--variables" media="screen">
+    :root {
+      --darkreader-neutral-background: #131516;
+      --darkreader-neutral-text: #d8d4cf;
+      --darkreader-selection-background: #004daa;
+      --darkreader-selection-text: #e8e6e3;
+    }
+  </style>
+  <style class="darkreader darkreader--root-vars" media="screen"></style>
+  <style class="darkreader darkreader--user-agent" media="screen">
+    html {
+      background-color: #181a1b !important;
+    }
+
+    html {
+      color-scheme: dark !important;
+    }
+
+    html,
+    body {
+      background-color: #181a1b;
+    }
+
+    html,
+    body {
+      border-color: #736b5e;
+      color: #e8e6e3;
+    }
+
+    a {
+      color: #3391ff;
+    }
+
+    table {
+      border-color: #545b5e;
+    }
+
+    ::placeholder {
+      color: #b2aba1;
+    }
+
+    input:-webkit-autofill,
+    textarea:-webkit-autofill,
+    select:-webkit-autofill {
+      background-color: #404400 !important;
+      color: #e8e6e3 !important;
+    }
+
+    ::selection {
+      background-color: #004daa !important;
+      color: #e8e6e3 !important;
+    }
+
+    ::-moz-selection {
+      background-color: #004daa !important;
+      color: #e8e6e3 !important;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+  <!--[if IEMobile]><meta http-equiv=cleartype content="on"><![endif]-->
+  <title>Automatic Gloss Dictionary for Sign Language Learners - ACL Anthology</title>
+  <meta name="generator" content="Hugo 0.118.2">
+  <link href="https://aclanthology.org/aclicon.ico" rel="shortcut icon" type="image/x-icon">
+  <link rel="stylesheet"
+    href="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/main.min.b1d14a9a8f6bb9c608ca4de9aad72a6e06945119f97951f2908522dc220e6277.css"
+    media="screen">
+  <style class="darkreader darkreader--sync" media="screen"></style>
+  <link rel="stylesheet" href="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/all.css"
+    integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <style class="darkreader darkreader--sync" media="screen"></style>
+  <link rel="stylesheet"
+    href="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/academicons.min.css">
+  <style class="darkreader darkreader--sync" media="screen"></style>
+  <meta content="Automatic Gloss Dictionary for Sign Language Learners" name="citation_title">
+  <meta content="Chenchen Xu" name="citation_author">
+  <meta content="Dongxu Li" name="citation_author">
+  <meta content="Hongdong Li" name="citation_author">
+  <meta content="Hanna Suominen" name="citation_author">
+  <meta content="Ben Swift" name="citation_author">
+  <meta
+    content="Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: System Demonstrations"
+    name="citation_conference_title">
+  <meta content="2022/5" name="citation_publication_date">
+  <meta content="https://aclanthology.org/2022.acl-demo.8.pdf" name="citation_pdf_url">
+  <meta content="83" name="citation_firstpage">
+  <meta content="92" name="citation_lastpage">
+  <meta content="10.18653/v1/2022.acl-demo.8" name="citation_doi">
+  <meta property="og:title" content="Automatic Gloss Dictionary for Sign Language Learners">
+  <meta property="og:image" content="https://aclanthology.org/thumb/2022.acl-demo.8.jpg">
+  <meta property="og:image:alt" content="First page of paper PDF.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="ACL Anthology">
+  <meta property="og:url" content="https://aclanthology.org/2022.acl-demo.8">
+  <meta property="og:description"
+    content="Chenchen Xu, Dongxu Li, Hongdong Li, Hanna Suominen, Ben Swift. Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: System Demonstrations. 2022.">
+  <link rel="canonical" href="https://aclanthology.org/2022.acl-demo.8">
+  <meta name="darkreader" content="dd25a3c395c9472daef6ef4f1990cec8">
+  <style class="darkreader darkreader--override" media="screen">
+    .vimvixen-hint {
+      background-color: #7b5300 !important;
+      border-color: #d8b013 !important;
+      color: #f3e8c8 !important;
+    }
+
+    #vimvixen-console-frame {
+      color-scheme: light !important
+    }
+
+    ::placeholder {
+      opacity: 0.5 !important;
+    }
+
+    #edge-translate-panel-body,
+    .MuiTypography-body1,
+    .nfe-quote-text {
+      color: var(--darkreader-neutral-text) !important;
+    }
+
+    gr-main-header {
+      background-color: #0f3a48 !important;
+    }
+
+    .tou-z65h9k,
+    .tou-mignzq,
+    .tou-1b6i2ox,
+    .tou-lnqlqk {
+      background-color: var(--darkreader-neutral-background) !important;
+    }
+
+    .tou-75mvi {
+      background-color: #032029 !important;
+    }
+
+    .tou-ta9e87,
+    .tou-1w3fhi0,
+    .tou-1b8t2us,
+    .tou-py7lfi,
+    .tou-1lpmd9d,
+    .tou-1frrtv8,
+    .tou-17ezmgn {
+      background-color: #0a0a0a !important;
+    }
+
+    .tou-uknfeu {
+      background-color: #231603 !important;
+    }
+
+    .tou-6i3zyv {
+      background-color: #19576c !important;
+    }
+
+    div.mermaid-viewer-control-panel .btn {
+      fill: var(--darkreader-neutral-text);
+      background-color: var(--darkreader-neutral-background);
+    }
+
+    svg g rect.er {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+
+    svg g rect.er.entityBox {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+
+    svg g rect.er.attributeBoxOdd {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+
+    svg g rect.er.attributeBoxEven {
+      fill-opacity: 0.8 !important;
+      fill: var(--darkreader-selection-background);
+    }
+
+    svg rect.er.relationshipLabelBox {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+
+    svg g g.nodes rect,
+    svg g g.nodes polygon {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+
+    svg g rect.task {
+      fill: var(--darkreader-selection-background) !important;
+    }
+
+    svg line.messageLine0,
+    svg line.messageLine1 {
+      stroke: var(--darkreader-neutral-text) !important;
+    }
+
+    div.mermaid .actor {
+      fill: var(--darkreader-neutral-background) !important;
+    }
+  </style>
+</head>
+
+<body class="vsc-initialized">
+  <nav class="navbar navbar-expand-sm navbar-light bg-light bg-gradient-light shadow-sm py-0 mb-3 mb-md-4 mb-xl-5">
+    <div id="navbar-container" class="container"><a class="navbar-brand" href="https://aclanthology.org/"><img
+          src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/acl-logo.svg" width="56"
+          alt="ACL Logo">
+        <span class="d-none d-md-inline pl-md-2">ACL Anthology</span></a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item"><a class="nav-link" href="https://aclanthology.org/faq/">FAQ<span
+                class="sr-only">(current)</span></a></li>
+          <li class="nav-item"><a class="nav-link" href="https://aclanthology.org/info/corrections/">Corrections<span
+                class="sr-only">(current)</span></a></li>
+          <li class="nav-item"><a class="nav-link" href="https://aclanthology.org/info/contrib/">Submissions<span
+                class="sr-only">(current)</span></a></li>
+        </ul>
+        <form class="form-inline my-2 my-lg-0" action="https://aclanthology.org/search/?" method="get"><input
+            id="acl-search-box" class="form-control mr-sm-2" name="q" type="search" placeholder="Search..."
+            aria-label="Search">
+          <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <div id="main-container" class="container">
+    <section id="main">
+      <div>
+        <h2 id="title"><a href="https://aclanthology.org/2022.acl-demo.8.pdf">Automatic Gloss Dictionary for Sign
+            Language Learners</a></h2>
+        <p class="lead"><a href="https://aclanthology.org/people/c/chenchen-xu/">Chenchen Xu</a>,
+          <a href="https://aclanthology.org/people/d/dongxu-li/">Dongxu Li</a>,
+          <a href="https://aclanthology.org/people/h/hongdong-li/">Hongdong Li</a>,
+          <a href="https://aclanthology.org/people/h/hanna-suominen/">Hanna Suominen</a>,
+          <a href="https://aclanthology.org/people/b/ben-swift/">Ben Swift</a>
+        </p>
+      </div>
+      <hr>
+      <div class="row acl-paper-details">
+        <div class="col col-lg-10 order-2">
+          <div class="card bg-light mb-2 mb-lg-3">
+            <div class="card-body acl-abstract">
+              <h5 class="card-title">Abstract</h5><span>A multi-language dictionary is a fundamental tool for language
+                learning, allowing the learner to look up unfamiliar words. Searching an unrecognized word in the
+                dictionary does not usually require deep knowledge of the target language. However, this is not true for
+                sign language, where gestural elements preclude this type of easy lookup. This paper introduces
+                GlossFinder, an online tool supporting 2, 000 signs to assist language learners in determining the
+                meaning of given signs. Unlike alternative systems of complex inputs, our system requires only that
+                learners imitate the sign in front of a standard webcam. A user study conducted among sign language
+                speakers of varying ability compared our system against existing alternatives and the interviews
+                indicated a clear preference for our new system. This implies that GlossFinder can lower the barrier in
+                sign language learning by addressing the common problem of sign finding and make it accessible to the
+                wider community.</span>
+            </div>
+          </div>
+          <dl>
+            <dt>Anthology ID:</dt>
+            <dd>2022.acl-demo.8</dd>
+            <dt>Volume:</dt>
+            <dd><a href="https://aclanthology.org/volumes/2022.acl-demo/">Proceedings of the 60th Annual Meeting of the
+                Association for Computational Linguistics: System Demonstrations</a></dd>
+            <dt>Month:</dt>
+            <dd>May</dd>
+            <dt>Year:</dt>
+            <dd>2022</dd>
+            <dt>Address:</dt>
+            <dd>Dublin, Ireland</dd>
+            <dt>Editors:</dt>
+            <dd><a href="https://aclanthology.org/people/v/valerio-basile/">Valerio Basile</a>,
+              <a href="https://aclanthology.org/people/z/zornitsa-kozareva/">Zornitsa Kozareva</a>,
+              <a href="https://aclanthology.org/people/s/sanja-stajner/">Sanja Stajner</a>
+            </dd>
+            <dt>Venue:</dt>
+            <dd><a href="https://aclanthology.org/venues/acl/">ACL</a></dd>
+            <dt>SIG:</dt>
+            <dd></dd>
+            <dt>Publisher:</dt>
+            <dd>Association for Computational Linguistics</dd>
+            <dt>Note:</dt>
+            <dd></dd>
+            <dt>Pages:</dt>
+            <dd>83–92</dd>
+            <dt>Language:</dt>
+            <dd></dd>
+            <dt>URL:</dt>
+            <dd><a href="https://aclanthology.org/2022.acl-demo.8">https://aclanthology.org/2022.acl-demo.8</a></dd>
+            <dt>DOI:</dt>
+            <dd><a href="http://dx.doi.org/10.18653/v1/2022.acl-demo.8"
+                title="To the current version of the paper by DOI">10.18653/v1/2022.acl-demo.8</a></dd>
+            <dt class="acl-button-row">Bibkey:</dt>
+            <dd class="acl-button-row"><button type="button" class="btn btn-clipboard-outside btn-secondary btn-sm"
+                data-clipboard-target="#citePaperBibkey"><i class="far fa-clipboard"></i><span id="citePaperBibkey"
+                  class="pl-2 text-monospace">xu-etal-2022-automatic</span></button></dd>
+            <dt>Cite (ACL):</dt>
+            <dd><span id="citeACL">Chenchen Xu, Dongxu Li, Hongdong Li, Hanna Suominen, and Ben Swift. 2022. <a
+                  href="https://aclanthology.org/2022.acl-demo.8">Automatic Gloss Dictionary for Sign Language
+                  Learners</a>. In <i>Proceedings of the 60th Annual Meeting of the Association for Computational
+                  Linguistics: System Demonstrations</i>, pages 83–92, Dublin, Ireland. Association for Computational
+                Linguistics.</span><button type="button" class="btn btn-clipboard btn-secondary btn-sm ml-2"
+                data-clipboard-target="#citeACL"><i class="far fa-clipboard"></i></button></dd>
+            <dt>Cite (Informal):</dt>
+            <dd><span id="citeRichText"><a href="https://aclanthology.org/2022.acl-demo.8">Automatic Gloss Dictionary
+                  for Sign Language Learners</a> (Xu et al., ACL 2022)</span><button type="button"
+                class="btn btn-clipboard btn-secondary btn-sm ml-2" data-clipboard-target="#citeRichText"><i
+                  class="far fa-clipboard"></i></button></dd>
+            <dt class="acl-button-row">Copy Citation:</dt>
+            <dd class="acl-button-row"><button type="button" class="btn btn-clipboard-outside btn-secondary btn-sm"
+                data-clipboard-target="#citeBibtexContent"><i class="far fa-clipboard pr-2"></i>BibTeX</button>
+              <button type="button" class="btn btn-clipboard-outside btn-secondary btn-sm"
+                data-clipboard-target="#citeMarkdownContent"><i class="far fa-clipboard pr-2"></i>Markdown</button>
+              <button type="button" class="btn btn-clipboard-outside btn-secondary btn-sm"
+                data-clipboard-target="#citeModsContent"><i class="far fa-clipboard pr-2"></i>MODS XML</button>
+              <button type="button" class="btn btn-clipboard-outside btn-secondary btn-sm"
+                data-clipboard-target="#citeEndnoteContent"><i class="far fa-clipboard pr-2"></i>Endnote</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#citeModal">More
+                options…</button>
+            </dd>
+            <dt>PDF:</dt>
+            <dd><a href="https://aclanthology.org/2022.acl-demo.8.pdf">https://aclanthology.org/2022.acl-demo.8.pdf</a>
+            </dd>
+            <dt>Data</dt>
+            <dd><a href="https://paperswithcode.com/dataset/wlasl">WLASL</a></dd>
+          </dl>
+        </div>
+        <div class="acl-paper-link-block"><a class="btn btn-primary" href="https://aclanthology.org/2022.acl-demo.8.pdf"
+            title="Open PDF of &#39;Automatic Gloss Dictionary for Sign Language Learners&#39;"><i
+              class="far fa-file-pdf"></i><span class="pl-2">PDF</span></a>
+          <a class="btn btn-secondary" title="Open dialog for exporting citations" data-toggle="modal"
+            data-target="#citeModal" href="https://aclanthology.org/2022.acl-demo.8/#"><i
+              class="fas fa-quote-left"></i><span class="pl-2">Cite</span></a>
+          <a class="btn btn-secondary"
+            href="https://www.semanticscholar.org/search?q=Automatic+Gloss+Dictionary+for+Sign+Language+Learners"
+            title="Search for &#39;Automatic Gloss Dictionary for Sign Language Learners&#39; on Semantic Scholar"><i
+              class="ai ai-semantic-scholar"></i><span class="pl-sm-2 d-none d-sm-inline">Search</span></a>
+        </div>
+      </div>
+      <hr>
+      <div class="modal fade" id="citeModal" tabindex="-1" role="dialog" aria-labelledby="citeModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="citeModalLabel">Export citation</h5><button class="close" data-dismiss="modal"
+                aria-label="Close">
+                <span aria-hidden="true">×</span></button>
+            </div>
+            <div class="modal-body">
+              <ul class="nav nav-tabs mb-2" id="citeFormats" role="tablist">
+                <li class="nav-item"><a class="nav-link active" data-toggle="list"
+                    href="https://aclanthology.org/2022.acl-demo.8/#citeBibtex" role="tab" aria-controls="citeBibtex"
+                    aria-selected="true">BibTeX</a></li>
+                <li class="nav-item"><a class="nav-link" data-toggle="list"
+                    href="https://aclanthology.org/2022.acl-demo.8/#citeMods" role="tab" aria-controls="citeMods"
+                    aria-selected="false">MODS XML</a></li>
+                <li class="nav-item"><a class="nav-link" data-toggle="list"
+                    href="https://aclanthology.org/2022.acl-demo.8/#citeEndnote" role="tab" aria-controls="citeEndnote"
+                    aria-selected="false">Endnote</a></li>
+                <li class="nav-item"><a class="nav-link" data-toggle="list"
+                    href="https://aclanthology.org/2022.acl-demo.8/#citeMarkdown" role="tab"
+                    aria-controls="citeMarkdown" aria-selected="false">Preformatted</a></li>
+              </ul>
+              <div class="tab-content" id="citeFormatsContent">
+                <div class="tab-pane active" id="citeBibtex" role="tabpanel">
+                  <pre id="citeBibtexContent" class="bg-light border p-2" style="max-height:50vh">@inproceedings{xu-etal-2022-automatic,
+    title = "Automatic Gloss Dictionary for Sign Language Learners",
+    author = "Xu, Chenchen  and
+      Li, Dongxu  and
+      Li, Hongdong  and
+      Suominen, Hanna  and
+      Swift, Ben",
+    editor = "Basile, Valerio  and
+      Kozareva, Zornitsa  and
+      Stajner, Sanja",
+    booktitle = "Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: System Demonstrations",
+    month = may,
+    year = "2022",
+    address = "Dublin, Ireland",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2022.acl-demo.8",
+    doi = "10.18653/v1/2022.acl-demo.8",
+    pages = "83--92",
+    abstract = "A multi-language dictionary is a fundamental tool for language learning, allowing the learner to look up unfamiliar words. Searching an unrecognized word in the dictionary does not usually require deep knowledge of the target language. However, this is not true for sign language, where gestural elements preclude this type of easy lookup. This paper introduces GlossFinder, an online tool supporting 2, 000 signs to assist language learners in determining the meaning of given signs. Unlike alternative systems of complex inputs, our system requires only that learners imitate the sign in front of a standard webcam. A user study conducted among sign language speakers of varying ability compared our system against existing alternatives and the interviews indicated a clear preference for our new system. This implies that GlossFinder can lower the barrier in sign language learning by addressing the common problem of sign finding and make it accessible to the wider community.",
+}
+</pre>
+                  <div class="modal-footer pb-1"><a class="btn btn-secondary"
+                      href="https://aclanthology.org/2022.acl-demo.8.bib"><i class="fas fa-download pr-2"></i>Download
+                      as File</a>
+                    <button class="btn btn-clipboard btn-primary" data-clipboard-target="#citeBibtexContent"><i
+                        class="far fa-clipboard pr-2"></i>Copy to Clipboard</button>
+                  </div>
+                </div>
+                <div class="tab-pane" id="citeMods" role="tabpanel">
+                  <pre id="citeModsContent" class="bg-light border p-2" style="max-height:50vh">﻿&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;modsCollection xmlns="http://www.loc.gov/mods/v3"&gt;
+&lt;mods ID="xu-etal-2022-automatic"&gt;
+    &lt;titleInfo&gt;
+        &lt;title&gt;Automatic Gloss Dictionary for Sign Language Learners&lt;/title&gt;
+    &lt;/titleInfo&gt;
+    &lt;name type="personal"&gt;
+        &lt;namePart type="given"&gt;Chenchen&lt;/namePart&gt;
+        &lt;namePart type="family"&gt;Xu&lt;/namePart&gt;
+        &lt;role&gt;
+            &lt;roleTerm authority="marcrelator" type="text"&gt;author&lt;/roleTerm&gt;
+        &lt;/role&gt;
+    &lt;/name&gt;
+    &lt;name type="personal"&gt;
+        &lt;namePart type="given"&gt;Dongxu&lt;/namePart&gt;
+        &lt;namePart type="family"&gt;Li&lt;/namePart&gt;
+        &lt;role&gt;
+            &lt;roleTerm authority="marcrelator" type="text"&gt;author&lt;/roleTerm&gt;
+        &lt;/role&gt;
+    &lt;/name&gt;
+    &lt;name type="personal"&gt;
+        &lt;namePart type="given"&gt;Hongdong&lt;/namePart&gt;
+        &lt;namePart type="family"&gt;Li&lt;/namePart&gt;
+        &lt;role&gt;
+            &lt;roleTerm authority="marcrelator" type="text"&gt;author&lt;/roleTerm&gt;
+        &lt;/role&gt;
+    &lt;/name&gt;
+    &lt;name type="personal"&gt;
+        &lt;namePart type="given"&gt;Hanna&lt;/namePart&gt;
+        &lt;namePart type="family"&gt;Suominen&lt;/namePart&gt;
+        &lt;role&gt;
+            &lt;roleTerm authority="marcrelator" type="text"&gt;author&lt;/roleTerm&gt;
+        &lt;/role&gt;
+    &lt;/name&gt;
+    &lt;name type="personal"&gt;
+        &lt;namePart type="given"&gt;Ben&lt;/namePart&gt;
+        &lt;namePart type="family"&gt;Swift&lt;/namePart&gt;
+        &lt;role&gt;
+            &lt;roleTerm authority="marcrelator" type="text"&gt;author&lt;/roleTerm&gt;
+        &lt;/role&gt;
+    &lt;/name&gt;
+    &lt;originInfo&gt;
+        &lt;dateIssued&gt;2022-05&lt;/dateIssued&gt;
+    &lt;/originInfo&gt;
+    &lt;typeOfResource&gt;text&lt;/typeOfResource&gt;
+    &lt;relatedItem type="host"&gt;
+        &lt;titleInfo&gt;
+            &lt;title&gt;Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: System Demonstrations&lt;/title&gt;
+        &lt;/titleInfo&gt;
+        &lt;name type="personal"&gt;
+            &lt;namePart type="given"&gt;Valerio&lt;/namePart&gt;
+            &lt;namePart type="family"&gt;Basile&lt;/namePart&gt;
+            &lt;role&gt;
+                &lt;roleTerm authority="marcrelator" type="text"&gt;editor&lt;/roleTerm&gt;
+            &lt;/role&gt;
+        &lt;/name&gt;
+        &lt;name type="personal"&gt;
+            &lt;namePart type="given"&gt;Zornitsa&lt;/namePart&gt;
+            &lt;namePart type="family"&gt;Kozareva&lt;/namePart&gt;
+            &lt;role&gt;
+                &lt;roleTerm authority="marcrelator" type="text"&gt;editor&lt;/roleTerm&gt;
+            &lt;/role&gt;
+        &lt;/name&gt;
+        &lt;name type="personal"&gt;
+            &lt;namePart type="given"&gt;Sanja&lt;/namePart&gt;
+            &lt;namePart type="family"&gt;Stajner&lt;/namePart&gt;
+            &lt;role&gt;
+                &lt;roleTerm authority="marcrelator" type="text"&gt;editor&lt;/roleTerm&gt;
+            &lt;/role&gt;
+        &lt;/name&gt;
+        &lt;originInfo&gt;
+            &lt;publisher&gt;Association for Computational Linguistics&lt;/publisher&gt;
+            &lt;place&gt;
+                &lt;placeTerm type="text"&gt;Dublin, Ireland&lt;/placeTerm&gt;
+            &lt;/place&gt;
+        &lt;/originInfo&gt;
+        &lt;genre authority="marcgt"&gt;conference publication&lt;/genre&gt;
+    &lt;/relatedItem&gt;
+    &lt;abstract&gt;A multi-language dictionary is a fundamental tool for language learning, allowing the learner to look up unfamiliar words. Searching an unrecognized word in the dictionary does not usually require deep knowledge of the target language. However, this is not true for sign language, where gestural elements preclude this type of easy lookup. This paper introduces GlossFinder, an online tool supporting 2, 000 signs to assist language learners in determining the meaning of given signs. Unlike alternative systems of complex inputs, our system requires only that learners imitate the sign in front of a standard webcam. A user study conducted among sign language speakers of varying ability compared our system against existing alternatives and the interviews indicated a clear preference for our new system. This implies that GlossFinder can lower the barrier in sign language learning by addressing the common problem of sign finding and make it accessible to the wider community.&lt;/abstract&gt;
+    &lt;identifier type="citekey"&gt;xu-etal-2022-automatic&lt;/identifier&gt;
+    &lt;identifier type="doi"&gt;10.18653/v1/2022.acl-demo.8&lt;/identifier&gt;
+    &lt;location&gt;
+        &lt;url&gt;https://aclanthology.org/2022.acl-demo.8&lt;/url&gt;
+    &lt;/location&gt;
+    &lt;part&gt;
+        &lt;date&gt;2022-05&lt;/date&gt;
+        &lt;extent unit="page"&gt;
+            &lt;start&gt;83&lt;/start&gt;
+            &lt;end&gt;92&lt;/end&gt;
+        &lt;/extent&gt;
+    &lt;/part&gt;
+&lt;/mods&gt;
+&lt;/modsCollection&gt;
+</pre>
+                  <div class="modal-footer pb-1"><a class="btn btn-secondary"
+                      href="https://aclanthology.org/2022.acl-demo.8.xml"><i class="fas fa-download pr-2"></i>Download
+                      as File</a>
+                    <button class="btn btn-clipboard btn-primary" data-clipboard-target="#citeModsContent"><i
+                        class="far fa-clipboard pr-2"></i>Copy to Clipboard</button>
+                  </div>
+                </div>
+                <div class="tab-pane" id="citeEndnote" role="tabpanel">
+                  <pre id="citeEndnoteContent" class="bg-light border p-2" style="max-height:50vh">﻿%0 Conference Proceedings
+%T Automatic Gloss Dictionary for Sign Language Learners
+%A Xu, Chenchen
+%A Li, Dongxu
+%A Li, Hongdong
+%A Suominen, Hanna
+%A Swift, Ben
+%Y Basile, Valerio
+%Y Kozareva, Zornitsa
+%Y Stajner, Sanja
+%S Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: System Demonstrations
+%D 2022
+%8 May
+%I Association for Computational Linguistics
+%C Dublin, Ireland
+%F xu-etal-2022-automatic
+%X A multi-language dictionary is a fundamental tool for language learning, allowing the learner to look up unfamiliar words. Searching an unrecognized word in the dictionary does not usually require deep knowledge of the target language. However, this is not true for sign language, where gestural elements preclude this type of easy lookup. This paper introduces GlossFinder, an online tool supporting 2, 000 signs to assist language learners in determining the meaning of given signs. Unlike alternative systems of complex inputs, our system requires only that learners imitate the sign in front of a standard webcam. A user study conducted among sign language speakers of varying ability compared our system against existing alternatives and the interviews indicated a clear preference for our new system. This implies that GlossFinder can lower the barrier in sign language learning by addressing the common problem of sign finding and make it accessible to the wider community.
+%R 10.18653/v1/2022.acl-demo.8
+%U https://aclanthology.org/2022.acl-demo.8
+%U https://doi.org/10.18653/v1/2022.acl-demo.8
+%P 83-92
+
+</pre>
+                  <div class="modal-footer pb-1"><a class="btn btn-secondary"
+                      href="https://aclanthology.org/2022.acl-demo.8.endf"><i class="fas fa-download pr-2"></i>Download
+                      as File</a>
+                    <button class="btn btn-clipboard btn-primary" data-clipboard-target="#citeEndnoteContent"><i
+                        class="far fa-clipboard pr-2"></i>Copy to Clipboard</button>
+                  </div>
+                </div>
+                <div class="tab-pane" id="citeMarkdown" role="tabpanel">
+                  <h5>Markdown (Informal)</h5>
+                  <p id="citeMarkdownContent" class="text-monospace small bg-light border p-2">[Automatic Gloss
+                    Dictionary for Sign Language Learners](https://aclanthology.org/2022.acl-demo.8) (Xu et al., ACL
+                    2022)</p>
+                  <ul class="mt-2">
+                    <li><a href="https://aclanthology.org/2022.acl-demo.8">Automatic Gloss Dictionary for Sign Language
+                        Learners</a> (Xu et al., ACL 2022)</li>
+                  </ul>
+                  <h5>ACL</h5>
+                  <ul class="mt-2">
+                    <li id="citeACLstyleContent">Chenchen Xu, Dongxu Li, Hongdong Li, Hanna Suominen, and Ben Swift.
+                      2022. <a href="https://aclanthology.org/2022.acl-demo.8">Automatic Gloss Dictionary for Sign
+                        Language Learners</a>. In <i>Proceedings of the 60th Annual Meeting of the Association for
+                        Computational Linguistics: System Demonstrations</i>, pages 83–92, Dublin, Ireland. Association
+                      for Computational Linguistics.</li>
+                  </ul>
+                  <div class="modal-footer pb-1"><button type="button" class="btn btn-clipboard btn-primary"
+                      data-clipboard-target="#citeMarkdownContent"><i class="far fa-clipboard pr-2"></i>Copy Markdown to
+                      Clipboard</button>
+                    <button type="button" class="btn btn-clipboard btn-primary"
+                      data-clipboard-target="#citeACLstyleContent"><i class="far fa-clipboard pr-2"></i>Copy ACL to
+                      Clipboard</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer class="bg-gradient-light py-2 py-xl-3 mt-3 mt-md-4 mt-xl-5">
+    <div class="container">
+      <p class="text-muted small px-1"><span class="float-right mt-2 ml-2"><a rel="license"
+            href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License"
+              style="border-width:0"
+              src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/88x31.png"></a></span>
+        ACL materials are Copyright ©&nbsp;1963–2023 ACL; other materials are copyrighted by their respective copyright
+        holders. Materials prior to 2016 here are licensed under the <a
+          href="https://creativecommons.org/licenses/by-nc-sa/3.0/">Creative Commons
+          Attribution-NonCommercial-ShareAlike 3.0 International License</a>. Permission is granted to make copies for
+        the purposes of teaching and research. Materials published in or after 2016 are licensed on a <a
+          href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International
+          License</a>.</p>
+      <p class="text-muted small px-1">The ACL Anthology is managed and built by the <a
+          href="https://aclanthology.org/info/credits/">ACL Anthology team</a> of volunteers.</p>
+      <p class="text-muted small px-1"><i>Site last built on 23 November 2023 at 01:09 UTC with <a
+            href="https://github.com/acl-org/acl-anthology/tree/267e7b08709ee5797d4a3fb74bea0a5c9ecf3ae2">commit
+            267e7b0</a>.</i></p>
+    </div>
+  </footer>
+  <script src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/jquery-3.3.1.slim.min.js"
+    integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+    crossorigin="anonymous"></script>
+  <script src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/popper.min.js"
+    integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut"
+    crossorigin="anonymous"></script>
+  <script src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/bootstrap.min.js"
+    integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k"
+    crossorigin="anonymous"></script>
+  <script>$(function () { $('[data-toggle="tooltip"]').tooltip(), $("#toggle-all-abstracts") && ($("#toggle-all-abstracts").click(function () { var e = $("#toggle-all-abstracts"); e.attr("disabled", !0), e.attr("data-toggle-state") == "hide" ? ($(".abstract-collapse").collapse("show"), e.attr("data-toggle-state", "show")) : ($(".abstract-collapse").collapse("hide"), e.attr("data-toggle-state", "hide")), e.attr("disabled", !1) }), $("#toggle-all-abstracts").attr("disabled", !1)) })</script>
+  <script src="./Automatic_Gloss_Dictionary_for_Sign_Language_Learners___ACL_Anthology_files/clipboard.min.js"></script>
+  <script>$(document).ready(function () { if (ClipboardJS.isSupported()) { success_fn = function (e) { var t = $(e.trigger); t.toggleClass("btn-success"), t.children("i").toggleClass("far fa-clipboard fas fa-clipboard-check"), e.clearSelection(), setTimeout(function () { t.toggleClass("btn-success"), t.children("i").toggleClass("far fa-clipboard fas fa-clipboard-check") }, 2e3) }; var e, t = new ClipboardJS(".btn-clipboard"); t.on("success", success_fn), $(".btn-clipboard").removeClass("d-none"), e = new ClipboardJS(".btn-clipboard-outside", { text: function (e) { var t = e.getAttribute("data-clipboard-target"); return $(t).text() } }), e.on("success", success_fn), $(".btn-clipboard-outside").removeClass("d-none") } })</script>
+</body>
+
+</html>
