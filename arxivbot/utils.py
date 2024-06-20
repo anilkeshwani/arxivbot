@@ -38,7 +38,7 @@ def canonicalise_arxiv(arxiv_like: str) -> str:
         arxiv_like = arxiv_like[6:]
     if arxiv_like.startswith("http"):
         urlparse_result = urlparse(arxiv_like)
-        if not urlparse_result.netloc == "arxiv.org":
+        if urlparse_result.hostname is None or "arxiv.org" not in urlparse_result.hostname:
             raise ValueError("URL does not point to arXiv")
         return urlparse_result.path.strip("/").split("/")[-1].strip(".pdf")
     else:
