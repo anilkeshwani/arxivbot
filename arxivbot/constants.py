@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-OBSIDIAN_VAULT_DIR = Path("~/Desktop/journal/").expanduser()
+OBSIDIAN_VAULT_DIR = Path("~/Desktop/journal/").expanduser().resolve()
 PAPERS_DIR = OBSIDIAN_VAULT_DIR / "Papers"
 PDFS_DIR = OBSIDIAN_VAULT_DIR / "PDFs"
 PDFS_INDEX = PDFS_DIR / "index.tsv"
