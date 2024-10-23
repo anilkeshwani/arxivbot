@@ -12,7 +12,14 @@ import arxiv
 import yaml
 from pathvalidate import sanitize_filename
 
-from arxivbot.constants import PAPERS_DIR, PDFS_DIR, PDFS_INDEX, PDFS_INDEX_FIELD_NAMES, PDFS_INDEX_ID
+from arxivbot.constants import (
+    DEFAULT_PAPER_TAGS,
+    PAPERS_DIR,
+    PDFS_DIR,
+    PDFS_INDEX,
+    PDFS_INDEX_FIELD_NAMES,
+    PDFS_INDEX_ID,
+)
 from arxivbot.utils import canonicalise_arxiv, inflect_day
 
 
@@ -36,7 +43,7 @@ def collect_paper_yaml(arxiv_paper: arxiv.arxiv.Result, notion_entry: dict | Non
         "code": notion_entry["Code"] if notion_entry is not None else "",
         "page": notion_entry["Page"] if notion_entry is not None else "",
         "demo": notion_entry["Demo"] if notion_entry is not None else "",
-        "tags": notion_entry["Tags"] if notion_entry is not None else "",
+        "tags": notion_entry["Tags"] if notion_entry is not None else DEFAULT_PAPER_TAGS,
     }
     frontmatter = yaml.dump(frontmatter_fields, sort_keys=False, allow_unicode=True)
     return "---" + "\n" + frontmatter + "---" + "\n"

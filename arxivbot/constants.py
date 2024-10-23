@@ -7,3 +7,5 @@ PDFS_DIR = OBSIDIAN_VAULT_DIR / "PDFs"
 PDFS_INDEX = PDFS_DIR / "index.tsv"
 PDFS_INDEX_FIELD_NAMES = ["ID", "Published", "Added", "Title"]
 PDFS_INDEX_ID = "ID"
+
+DEFAULT_PAPER_TAGS = ["paper"]
