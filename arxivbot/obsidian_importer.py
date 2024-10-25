@@ -31,7 +31,7 @@ LOGGER.addHandler(logging.StreamHandler())
 
 def get_author_wiki(author_name, people_dir: Path | str = "People"):
     _author_page = Path(people_dir, sanitize_filename(author_name))
-    return f"[[{str(_author_page)} | {author_name}]]"
+    return f"[[{str(_author_page)}|{author_name}]]"
 
 
 def collect_paper_yaml(arxiv_paper: arxiv.arxiv.Result, notion_entry: dict | None) -> str:
