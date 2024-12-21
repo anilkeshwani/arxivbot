@@ -1,0 +1,422 @@
+{
+    "paperId": "ebdbded60f48131ed7ba73807c3c086993a96f89",
+    "externalIds": {
+        "DBLP": "journals/corr/abs-2408-16532",
+        "ArXiv": "2408.16532",
+        "DOI": "10.48550/arXiv.2408.16532",
+        "CorpusId": 272146429
+    },
+    "url": "https://www.semanticscholar.org/paper/ebdbded60f48131ed7ba73807c3c086993a96f89",
+    "abstract": "Language models have been effectively applied to modeling natural signals, such as images, video, speech, and audio. A crucial component of these models is the codec tokenizer, which compresses high-dimensional natural signals into lower-dimensional discrete tokens. In this paper, we introduce WavTokenizer, which offers several advantages over previous SOTA acoustic codec models in the audio domain: 1)extreme compression. By compressing the layers of quantizers and the temporal dimension of the discrete codec, one-second audio of 24kHz sampling rate requires only a single quantizer with 40 or 75 tokens. 2)improved subjective quality. Despite the reduced number of tokens, WavTokenizer achieves state-of-the-art reconstruction quality with outstanding UTMOS scores and inherently contains richer semantic information. Specifically, we achieve these results by designing a broader VQ space, extended contextual windows, and improved attention networks, as well as introducing a powerful multi-scale discriminator and an inverse Fourier transform structure. We conducted extensive reconstruction experiments in the domains of speech, audio, and music. WavTokenizer exhibited strong performance across various objective and subjective metrics compared to state-of-the-art models. We also tested semantic information, VQ utilization, and adaptability to generative models. Comprehensive ablation studies confirm the necessity of each module in WavTokenizer. The related code, demos, and pre-trained models are available at https://github.com/jishengpeng/WavTokenizer.",
+    "venue": "arXiv.org",
+    "year": 2024,
+    "influentialCitationCount": 2,
+    "fieldsOfStudy": [
+        "Engineering",
+        "Computer Science"
+    ],
+    "authors": [
+        {
+            "authorId": "72890649",
+            "name": "Shengpeng Ji"
+        },
+        {
+            "authorId": "2112347676",
+            "name": "Ziyue Jiang"
+        },
+        {
+            "authorId": "2191618494",
+            "name": "Xize Cheng"
+        },
+        {
+            "authorId": "2318012880",
+            "name": "Yifu Chen"
+        },
+        {
+            "authorId": "2234355048",
+            "name": "Minghui Fang"
+        },
+        {
+            "authorId": "2199136449",
+            "name": "Jia-li Zuo"
+        },
+        {
+            "authorId": "2312341123",
+            "name": "Qian Yang"
+        },
+        {
+            "authorId": "2181010470",
+            "name": "Ruiqi Li"
+        },
+        {
+            "authorId": "2116461847",
+            "name": "Ziang Zhang"
+        },
+        {
+            "authorId": "2308224151",
+            "name": "Xiaoda Yang"
+        },
+        {
+            "authorId": "2048021099",
+            "name": "Rongjie Huang"
+        },
+        {
+            "authorId": "2317908181",
+            "name": "Yidi Jiang"
+        },
+        {
+            "authorId": "2257010473",
+            "name": "Qian Chen"
+        },
+        {
+            "authorId": "2307567397",
+            "name": "Siqi Zheng"
+        },
+        {
+            "authorId": "2144329841",
+            "name": "Wen Wang"
+        },
+        {
+            "authorId": "2304453961",
+            "name": "Zhou Zhao"
+        }
+    ],
+    "references": [
+        {
+            "paperId": "13172efa7144dfabce0096b3578fc7a5cd64c807",
+            "title": "SyncTalklip: Highly Synchronized Lip-Readable Speaker Generation with Multi-Task Learning"
+        },
+        {
+            "paperId": "ae4aa7b0c5a327dae63ad20e00b58bcc6176b3b8",
+            "title": "Moshi: a speech-text foundation model for real-time dialogue"
+        },
+        {
+            "paperId": "8ca1fdca69d780881f905ef9a4612e62f49a1014",
+            "title": "Qwen2-Audio Technical Report"
+        },
+        {
+            "paperId": "be44334ac2345ff0d39fd79adde74d45123832ca",
+            "title": "FunAudioLLM: Voice Understanding and Generation Foundation Models for Natural Interaction Between Humans and LLMs"
+        },
+        {
+            "paperId": "8654b611548b09ec49816fc874ccdd8abcee1f40",
+            "title": "ACE: A Generative Cross-Modal Retrieval Framework with Coarse-To-Fine Semantic Modeling"
+        },
+        {
+            "paperId": "f2ede1390afd4917d1f5e83f70319339998e76f8",
+            "title": "Single-Codec: Single-Codebook Speech Codec towards High-Performance Speech Generation"
+        },
+        {
+            "paperId": "e1cde20b294d99e7335c9410026d76bb51c3e537",
+            "title": "VALL-E 2: Neural Codec Language Models are Human Parity Zero-Shot Text to Speech Synthesizers"
+        },
+        {
+            "paperId": "61afadf4f179a82800f6e4b943709d75bbabb45c",
+            "title": "Seed-TTS: A Family of High-Quality Versatile Speech Generation Models"
+        },
+        {
+            "paperId": "ab8290c74d88ff247c940199a74e7ab2568d4b6a",
+            "title": "ControlSpeech: Towards Simultaneous Zero-shot Speaker Cloning and Zero-shot Language Style Control With Decoupled Codec"
+        },
+        {
+            "paperId": "892cfb5491b051ae42f18f746195a62352cf5769",
+            "title": "HILCodec: High Fidelity and Lightweight Neural Audio Codec"
+        },
+        {
+            "paperId": "3118e392300426c5ada1309560773a434c1b70b3",
+            "title": "SemantiCodec: An Ultra Low Bitrate Semantic Audio Codec for General Sound"
+        },
+        {
+            "paperId": "3cf241bfb4d5ec6a744f4c455fc5ed1431a761a4",
+            "title": "Benchmarking Representations for Speech, Music, and Acoustic Events"
+        },
+        {
+            "paperId": "cc02b95dacfceb982cb28f44e1689a7422a1973c",
+            "title": "PSCodec: A Series of High-Fidelity Low-bitrate Neural Speech Codecs Leveraging Prompt Encoders"
+        },
+        {
+            "paperId": "61595e0aec1433541b3f8efe706293e51b9c7e53",
+            "title": "VoiceCraft: Zero-Shot Speech Editing and Text-to-Speech in the Wild"
+        },
+        {
+            "paperId": "509f2781fb6871cefec5bfa624a9d0754e3031d7",
+            "title": "Unlocking the Potential of Multimodal Unified Discrete Representation through Training-Free Codebook Optimization and Hierarchical Alignment"
+        },
+        {
+            "paperId": "575bf1f23a19620a8f696a965528e15d4833179a",
+            "title": "NaturalSpeech 3: Zero-Shot Speech Synthesis with Factorized Codec and Diffusion Models"
+        },
+        {
+            "paperId": "1ee64ae07b506df109fbf3e4e6005c80a8db4b6d",
+            "title": "Language-Codec: Reducing the Gaps Between Discrete Codec Representation and Speech Language Models"
+        },
+        {
+            "paperId": "14191e9f12913ad8c7ac6e1188682afac04aad09",
+            "title": "AnyGPT: Unified Multimodal LLM with Discrete Sequence Modeling"
+        },
+        {
+            "paperId": "43b2f0a67132ef4fd7e7da73228333f64eeb338f",
+            "title": "MobileSpeech: A Fast and High-Fidelity Framework for Mobile Zero-Shot Text-to-Speech"
+        },
+        {
+            "paperId": "61c2a081ffbee4b67a296f557aa9baf785a3eae6",
+            "title": "Natural language guidance of high-fidelity text-to-speech with synthetic annotations"
+        },
+        {
+            "paperId": "59e2330f60fc8e64351d10ddb724e67e81d67da6",
+            "title": "emotion2vec: Self-Supervised Pre-Training for Speech Emotion Representation"
+        },
+        {
+            "paperId": "f90595f99a0c66d2bb6d0f230f17c7cd8c58f44d",
+            "title": "Qwen-Audio: Advancing Universal Audio Understanding via Unified Large-Scale Audio-Language Models"
+        },
+        {
+            "paperId": "f72be31de9f9a09d4410fd38bc717efe43444827",
+            "title": "SALMONN: Towards Generic Hearing Abilities for Large Language Models"
+        },
+        {
+            "paperId": "c57c2b454747021eb11412bfbac6f2d668c9a644",
+            "title": "Fewer-Token Neural Speech Codec with Time-Invariant Codes"
+        },
+        {
+            "paperId": "3f9a2af2366f2117dfdd22154a22dd5d9fcc4a48",
+            "title": "FunCodec: A Fundamental, Reproducible and Integrable Open-Source Toolkit for Neural Speech Codec"
+        },
+        {
+            "paperId": "5fc1a1f79ea4d1a1c6e8da1a40ae08022a6d7308",
+            "title": "SpeechTokenizer: Unified Speech Tokenizer for Speech Large Language Models"
+        },
+        {
+            "paperId": "8b6c00246a0ae34f097aa64af7d9cb35b2b43a30",
+            "title": "RepCodec: A Speech Representation Codec for Speech Tokenization"
+        },
+        {
+            "paperId": "9f432d2500758cd1182fe47fb09c2065bf7b9123",
+            "title": "TextrolSpeech: A Text Style Control Speech Corpus with Codec Language Text-to-Speech Models"
+        },
+        {
+            "paperId": "3fde84766af26e6ca5a885fa02cab8ec66ecf7fa",
+            "title": "Mega-TTS 2: Boosting Prompting Mechanisms for Zero-Shot Speech Synthesis"
+        },
+        {
+            "paperId": "cf8fced1f446c554ca0c5608ae0a1131184212f6",
+            "title": "High-Fidelity Audio Compression with Improved RVQGAN"
+        },
+        {
+            "paperId": "4cc8e18f5eece0b0d8e1abcb8ee10fb33680fbb2",
+            "title": "Simple and Controllable Music Generation"
+        },
+        {
+            "paperId": "5d56f58baf377f191721062ceb64ff1b029f67b2",
+            "title": "Mega-TTS: Zero-Shot Text-to-Speech at Scale with Intrinsic Inductive Bias"
+        },
+        {
+            "paperId": "9dfd2248d66f7227eb8a2b5d29064acf66174c9a",
+            "title": "Vocos: Closing the gap between time-domain and Fourier-based neural vocoders for high-quality audio synthesis"
+        },
+        {
+            "paperId": "fb08b08916caab4b22c60fa96753f6b9a5886d75",
+            "title": "MERT: Acoustic Music Understanding Model with Large-Scale Self-supervised Training"
+        },
+        {
+            "paperId": "900509527851a4b694ecb873e96b44712a012931",
+            "title": "Audiodec: An Open-Source Streaming High-Fidelity Neural Audio Codec"
+        },
+        {
+            "paperId": "5cac6430bd379c9d2fe13137dfd6ae7721a2679f",
+            "title": "SpeechGPT: Empowering Large Language Models with Intrinsic Cross-Modal Conversational Abilities"
+        },
+        {
+            "paperId": "2183c88e9056e931b07d48f1dc44360785952073",
+            "title": "SoundStorm: Efficient Parallel Audio Generation"
+        },
+        {
+            "paperId": "90831247f414c50820067ae8c2d4acdbc6c68746",
+            "title": "HiFi-Codec: Group-residual Vector quantization for High Fidelity Audio Codec"
+        },
+        {
+            "paperId": "57e849d0de13ed5f91d086936296721d4ff75a75",
+            "title": "LLaMA: Open and Efficient Foundation Language Models"
+        },
+        {
+            "paperId": "071d021ef9dcd83686d7b12bec2e13283b2f048f",
+            "title": "Speak, Read and Prompt: High-Fidelity Text-to-Speech with Minimal Supervision"
+        },
+        {
+            "paperId": "428854d9e75f94f0e61f37c6887c77800437d516",
+            "title": "MusicLM: Generating Music From Text"
+        },
+        {
+            "paperId": "c2f91f35df893714418cc29096083dce0b441229",
+            "title": "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers"
+        },
+        {
+            "paperId": "cdcfeb447fa8554c131c0a13a7ffcba30c0381e1",
+            "title": "High Fidelity Neural Audio Compression"
+        },
+        {
+            "paperId": "ebb85974e06c4879b451fdfcb4f472a09471935b",
+            "title": "AudioGen: Textually Guided Audio Generation"
+        },
+        {
+            "paperId": "3021fa7790631e11e888315d387c0a442ef82ab6",
+            "title": "UTMOS: UTokyo-SaruLab System for VoiceMOS Challenge 2022"
+        },
+        {
+            "paperId": "8f2bca9d684005675e294b33c26481e36f528cdb",
+            "title": "data2vec: A General Framework for Self-supervised Learning in Speech, Vision and Language"
+        },
+        {
+            "paperId": "eff2c0d92cd779554609b421d7f87154ba3c10a2",
+            "title": "The variably intense vocalizations of affect and emotion (VIVAE) corpus prompts new perspective on nonspeech perception."
+        },
+        {
+            "paperId": "177e957f5cd93229c9794ea652c646d2557b4a69",
+            "title": "A ConvNet for the 2020s"
+        },
+        {
+            "paperId": "c10075b3746a9f3dd5811970e93c8ca3ad39b39d",
+            "title": "High-Resolution Image Synthesis with Latent Diffusion Models"
+        },
+        {
+            "paperId": "416dab850fda842b13a4f28164514d98f836fff7",
+            "title": "WavLM: Large-Scale Self-Supervised Pre-Training for Full Stack Speech Processing"
+        },
+        {
+            "paperId": "59a0ef2d3bccebb544a2df4ad0453d49cc8e731f",
+            "title": "SoundStream: An End-to-End Neural Audio Codec"
+        },
+        {
+            "paperId": "fca7957c0b503f4319d6a830a24417239e0c5f09",
+            "title": "UnivNet: A Neural Vocoder with Multi-Resolution Spectrogram Discriminators for High-Fidelity Waveform Generation"
+        },
+        {
+            "paperId": "4fffa5245d3972077c83614c2a08a47cb578631e",
+            "title": "HuBERT: Self-Supervised Speech Representation Learning by Masked Prediction of Hidden Units"
+        },
+        {
+            "paperId": "d8e81e80490113434f7ac338c5f8d5a23f05a3de",
+            "title": "SUPERB: Speech processing Universal PERformance Benchmark"
+        },
+        {
+            "paperId": "11aba1be0ccdbe291fc4e469e458b832d5228203",
+            "title": "SLURP: A Spoken Language Understanding Resource Package"
+        },
+        {
+            "paperId": "268d347e8a55b5eb82fb5e7d2f800e33c75ab18a",
+            "title": "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"
+        },
+        {
+            "paperId": "4e468d3da1797d791db8d514d695b183acb027ee",
+            "title": "HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis"
+        },
+        {
+            "paperId": "5260c6b7b402ffae46bc53b337c71e7b80239432",
+            "title": "FSD50K: An Open Dataset of Human-Labeled Sound Events"
+        },
+        {
+            "paperId": "1623d6ffb6efd94d21537db2b96b91a196842aef",
+            "title": "FastSpeech 2: Fast and High-Quality End-to-End Text to Speech"
+        },
+        {
+            "paperId": "90abbc2cf38462b954ae1b772fac9532e2ccd8b0",
+            "title": "Language Models are Few-Shot Learners"
+        },
+        {
+            "paperId": "67dea28495cab71703993d0d52ca4733b9a66077",
+            "title": "Jukebox: A Generative Model for Music"
+        },
+        {
+            "paperId": "f59c038dee828e0a8c2fc28130d12e39ee4952d6",
+            "title": "Libri-Light: A Benchmark for ASR with Limited or No Supervision"
+        },
+        {
+            "paperId": "63a71de0dafc90910e37a2b07169ff486d9b5fe5",
+            "title": "Common Voice: A Massively-Multilingual Speech Corpus"
+        },
+        {
+            "paperId": "2789b6c84ba1422746246685001accba5563e7c1",
+            "title": "LibriTTS: A Corpus Derived from LibriSpeech for Text-to-Speech"
+        },
+        {
+            "paperId": "e280e430055b01ca5156c6283f9f3e43309cc87f",
+            "title": "AudioMNIST: Exploring Explainable Artificial Intelligence for audio analysis on a simple benchmark"
+        },
+        {
+            "paperId": "892c911ca68f5b4bad59cde7eeb6c738ec6c4586",
+            "title": "The Ryerson Audio-Visual Database of Emotional Speech and Song (RAVDESS): A dynamic, multimodal set of facial and vocal expressions in North American English"
+        },
+        {
+            "paperId": "4a6ac6dd942206031e638d243db8a6c086b51506",
+            "title": "MUSDB18 - a corpus for music separation"
+        },
+        {
+            "paperId": "5ba2218b708ca64ab556e39d5997202e012717d5",
+            "title": "Audio Set: An ontology and human-labeled dataset for audio events"
+        },
+        {
+            "paperId": "9a82095be10926f0a52f8f9939deadfe39be2184",
+            "title": "FMA: A Dataset for Music Analysis"
+        },
+        {
+            "paperId": "d4903c15a7aba8e2c2386b2fe95edf0905144d6a",
+            "title": "SUPERSEDED - CSTR VCTK Corpus: English Multi-speaker Corpus for CSTR Voice Cloning Toolkit"
+        },
+        {
+            "paperId": "d0e07f848571a36a48bcd2a11f828737f771a6bc",
+            "title": "Working on Progress"
+        },
+        {
+            "paperId": "de5e7320729f5d3cbb6709eb6329ec41ace8c95d",
+            "title": "Gaussian Error Linear Units (GELUs)"
+        },
+        {
+            "paperId": "f63e917638553414526a0cc8550de4ad2d83fe7a",
+            "title": "Fast and Accurate Deep Network Learning by Exponential Linear Units (ELUs)"
+        },
+        {
+            "paperId": "99e6f700d374e34c8376f1f43af994b278924f28",
+            "title": "ESC: Dataset for Environmental Sound Classification"
+        },
+        {
+            "paperId": "39a7a74de74efac3b8123650315d55cfb9d5220c",
+            "title": "A Dataset and Taxonomy for Urban Sound Research"
+        },
+        {
+            "paperId": "efba9e90a5b847ebc6b95d1855046d03d98005f3",
+            "title": "EMOVO Corpus: an Italian Emotional Speech Database"
+        },
+        {
+            "paperId": "dd5e786fd6ced91db79105ca289f49816fe17c80",
+            "title": "Perceptual evaluation of speech quality (PESQ)-a new method for speech quality assessment of telephone networks and codecs"
+        },
+        {
+            "paperId": "f7ced4b1901cc1b475fd4820bf7656ef132e8d47",
+            "title": "Make-A-Voice: Revisiting Voice Large Language Models as Scalable Multilingual and Multitask Learners"
+        },
+        {
+            "paperId": "61632c78b26ca366b5a1c8cbf3d0f50981126e8e",
+            "title": "UniAudio: Towards Universal Audio Generation with Large Language Models"
+        },
+        {
+            "paperId": "0f930973216b817ce5c59432f31e6291e107a767",
+            "title": "Mega-TTS 2: Zero-Shot Text-to-Speech with Arbitrary Length Speech Prompts"
+        },
+        {
+            "paperId": "23037085b0815455e6d47333089b925c8c0e21d5",
+            "title": "The MTG-Jamendo Dataset for Automatic Music Tagging"
+        },
+        {
+            "paperId": null,
+            "title": "B Series. Method for the subjective assessment of intermediate quality level of audio systems"
+        },
+        {
+            "paperId": "8557af4a2f17bb08a471565ba5ccf08115bf4c6a",
+            "title": "A Comparison of Sound Segregation Techniques for Predominant Instrument Recognition in Musical Audio Signals"
+        },
+        {
+            "paperId": "8a1384e041cc6ea2735b01c734aeef666dc92884",
+            "title": "Evaluation of Algorithms Using Games: The Case of Music Tagging"
+        }
+    ]
+}

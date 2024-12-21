@@ -13,6 +13,48 @@
 
 _credentials_template.env_ is a copy of (template for) a file, _credentials.env_, which should be placed in the same (top-level) directory with your Notion Integration token for authenticating. This is more convenient that exporting it each time you use the tool.
 
+## Semantic Scholar Resources
+
+Move the arxivbot onto the [Semantic Scholar (S2) Academic Graph API](https://api.semanticscholar.org/api-docs/graph). 
+
+Motivations:
+- this is more general
+- aggregates data from a wide array of sources - in addition to arXiv, we can directly collect from e.g. ACL, Nature etc. more easily
+- easily queryable by extracting S2 paper SHA from URL (terminal)
+
+Suggested usage: Exactly as arxivbot but with S2 URL. 
+
+- Ideally would accept arXiv or S2 URL
+    - can we extract the same metadata from both; 
+    - maybe just a fallback to arXiv arxivbot if arXiv ID/URL passed?
+- What does S2 give us (response) that we might want to add to the paper (meta)data?
+
+Example S2 paper page URL:
+
+```
+https://www.semanticscholar.org/paper/WavTokenizer%3A-an-Efficient-Acoustic-Discrete-Codec-Ji-Jiang/ebdbded60f48131ed7ba73807c3c086993a96f89
+```
+
+Example Academic Graph API query:
+
+```
+https://api.semanticscholar.org/graph/v1/paper/ebdbded60f48131ed7ba73807c3c086993a96f89?fields=url,year,authors,externalIds,abstract,venue,references,influentialCitationCount,fieldsOfStudy
+```
+
+Example based on: [CLI_cURL_Papers_with_Key example](https://github.com/allenai/s2-folks/blob/3c786b3f0727cca5049afd5654494acd99b80efb/examples/Webinar%20Code%20Examples/CLI_cURL_Papers_with_Key). 
+
+[Example response](/example_s2_academic_api_response.json)
+
+- [Get Open Access PDFs](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python/get_open_access_pdf)
+    - this is via [Open Access](https://www.openaccess.nl/en/what-is-open-access)
+- [Get details about a paper - Academic Graph API](https://api.semanticscholar.org/api-docs/#tag/Paper-Data/operation/get_graph_get_paper)
+    - See the contents of Response Schema (200 OK) in that same section for a list of all available fields that can be returned and **image below**
+- See API [usage examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples) and [Python examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python)
+
+![S2 Academic Graph - Details about a paper - Sample Response - 200 OK](/S2%20Academic%20Graph%20-%20Details%20about%20a%20paper%20-%20Sample%20Response%20-%20200%20OK.png)
+
+I filled out the [S2 API key request form](https://www.semanticscholar.org/product/api#api-key-form) on 2024-12-21. 
+
 ## Resources
 
 - arxiv
