@@ -45,6 +45,8 @@ Example based on: [CLI_cURL_Papers_with_Key example](https://github.com/allenai/
 
 [Example response](/example_s2_academic_api_response.json)
 
+[S2 API Tutorial](https://www.semanticscholar.org/product/api/tutorial)
+
 - [Get Open Access PDFs](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python/get_open_access_pdf)
     - this is via [Open Access](https://www.openaccess.nl/en/what-is-open-access)
 - [Get details about a paper - Academic Graph API](https://api.semanticscholar.org/api-docs/#tag/Paper-Data/operation/get_graph_get_paper)
