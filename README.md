@@ -8,6 +8,9 @@
 - [ ] provide integration via Telegram so that users can send their link to an authenticated channel and GitHub actions will trigger uploads nightly or, better, in response to a trigger triggered by Telegram
 - [x] write abstract to entries as text
 - [x] add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
+- [ ] I would love to read arXiv papers as epubs on my Kindle
+    - https://tex.stackexchange.com/questions/1551/use-latex-to-produce-epub
+    - https://www.reddit.com/r/MachineLearning/comments/5xtnl4/d_reading_arxiv_preprints_on_an_ereader/
 
 ## Credentials
 
