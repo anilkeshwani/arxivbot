@@ -32,13 +32,29 @@ Suggested usage: Exactly as arxivbot but with S2 URL.
     - maybe just a fallback to arXiv arxivbot if arXiv ID/URL passed?
 - What does S2 give us (response) that we might want to add to the paper (meta)data?
 
+
+[S2 API Tutorial](https://www.semanticscholar.org/product/api/tutorial)
+
+- [Get Open Access PDFs](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python/get_open_access_pdf)
+    - this is via [Open Access](https://www.openaccess.nl/en/what-is-open-access)
+- [Get details about a paper - Academic Graph API](https://api.semanticscholar.org/api-docs/#tag/Paper-Data/operation/get_graph_get_paper)
+    - See the contents of Response Schema (200 OK) in that same section for a list of all available fields that can be returned and **image below**
+- See API [usage examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples) and [Python examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python)
+- relevant unofficial Python wrapper of S2 API: <https://github.com/danielnsilva/semanticscholar>
+    - retrieve multiple items at once with [danielnsilva/semanticscholar](https://github.com/danielnsilva/semanticscholar?tab=readme-ov-file#retrieve-multiple-items-at-once) - check that this uses the [batch endpoints](https://www.semanticscholar.org/product/api/tutorial#base-urls) e.g. [Get details for multiple papers at once](https://api.semanticscholar.org/api-docs/#tag/Paper-Data/operation/post_graph_get_papers)
+
+![S2 Academic Graph - Details about a paper - Sample Response - 200 OK](/S2%20Academic%20Graph%20-%20Details%20about%20a%20paper%20-%20Sample%20Response%20-%20200%20OK.png)
+
+I filled out the [S2 API key request form](https://www.semanticscholar.org/product/api#api-key-form) on 2024-12-21. 
+
+
 Example S2 paper page URL:
 
 ```
 https://www.semanticscholar.org/paper/WavTokenizer%3A-an-Efficient-Acoustic-Discrete-Codec-Ji-Jiang/ebdbded60f48131ed7ba73807c3c086993a96f89
 ```
 
-Example Academic Graph API query:
+### Example S2 Academic Graph API query
 
 ```
 https://api.semanticscholar.org/graph/v1/paper/ebdbded60f48131ed7ba73807c3c086993a96f89?fields=url,year,authors,externalIds,abstract,venue,references,influentialCitationCount,fieldsOfStudy
@@ -48,17 +64,48 @@ Example based on: [CLI_cURL_Papers_with_Key example](https://github.com/allenai/
 
 [Example response](/example_s2_academic_api_response.json)
 
-[S2 API Tutorial](https://www.semanticscholar.org/product/api/tutorial)
+### Another Example S2 Academic Graph API query
 
-- [Get Open Access PDFs](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python/get_open_access_pdf)
-    - this is via [Open Access](https://www.openaccess.nl/en/what-is-open-access)
-- [Get details about a paper - Academic Graph API](https://api.semanticscholar.org/api-docs/#tag/Paper-Data/operation/get_graph_get_paper)
-    - See the contents of Response Schema (200 OK) in that same section for a list of all available fields that can be returned and **image below**
-- See API [usage examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples) and [Python examples](https://github.com/allenai/s2-folks/tree/3c786b3f0727cca5049afd5654494acd99b80efb/examples/python)
+```
+https://api.semanticscholar.org/graph/v1/paper/6bc4b1376ec2812b6d752c4f6bc8d8fd0512db91?fields=url,year,authors,externalIds,abstract,venue,influentialCitationCount,fieldsOfStudy
+```
 
-![S2 Academic Graph - Details about a paper - Sample Response - 200 OK](/S2%20Academic%20Graph%20-%20Details%20about%20a%20paper%20-%20Sample%20Response%20-%20200%20OK.png)
-
-I filled out the [S2 API key request form](https://www.semanticscholar.org/product/api#api-key-form) on 2024-12-21. 
+```json
+{
+  "paperId": "6bc4b1376ec2812b6d752c4f6bc8d8fd0512db91",
+  "externalIds": {
+    "ArXiv": "1705.09406",
+    "DBLP": "journals/pami/BaltrusaitisAM19",
+    "MAG": "2951127645",
+    "DOI": "10.1109/TPAMI.2018.2798607",
+    "CorpusId": 10137425,
+    "PubMed": "29994351"
+  },
+  "url": "https://www.semanticscholar.org/paper/6bc4b1376ec2812b6d752c4f6bc8d8fd0512db91",
+  "abstract": "Our experience of the world is multimodal - we see objects, hear sounds, feel texture, smell odors, and taste flavors. Modality refers to the way in which something happens or is experienced and a research problem is characterized as multimodal when it includes multiple such modalities. In order for Artificial Intelligence to make progress in understanding the world around us, it needs to be able to interpret such multimodal signals together. Multimodal machine learning aims to build models that can process and relate information from multiple modalities. It is a vibrant multi-disciplinary field of increasing importance and with extraordinary potential. Instead of focusing on specific multimodal applications, this paper surveys the recent advances in multimodal machine learning itself and presents them in a common taxonomy. We go beyond the typical early and late fusion categorization and identify broader challenges that are faced by multimodal machine learning, namely: representation, translation, alignment, fusion, and co-learning. This new taxonomy will enable researchers to better understand the state of the field and identify directions for future research.",
+  "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+  "year": 2017,
+  "influentialCitationCount": 135,
+  "fieldsOfStudy": [
+    "Computer Science",
+    "Medicine"
+  ],
+  "authors": [
+    {
+      "authorId": "1756344",
+      "name": "T. Baltrušaitis"
+    },
+    {
+      "authorId": "118242121",
+      "name": "Chaitanya Ahuja"
+    },
+    {
+      "authorId": "49933077",
+      "name": "Louis-Philippe Morency"
+    }
+  ]
+}
+```
 
 ## Resources
 
