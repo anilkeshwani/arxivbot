@@ -34,7 +34,7 @@ def get_author_wiki(author_name, people_dir: Path | str = "People"):
     return f"[[{str(_author_page)}|{author_name}]]"
 
 
-def collect_paper_yaml(arxiv_paper: arxiv.arxiv.Result, notion_entry: dict | None) -> str:
+def collect_paper_yaml(arxiv_paper: arxiv.Result, notion_entry: dict | None) -> str:
     frontmatter_fields = {
         "title": arxiv_paper.title,
         "authors": [author.name for author in arxiv_paper.authors],
@@ -50,7 +50,7 @@ def collect_paper_yaml(arxiv_paper: arxiv.arxiv.Result, notion_entry: dict | Non
 
 
 def write_obsidian_paper(
-    arxiv_paper: arxiv.arxiv.Result,
+    arxiv_paper: arxiv.Result,
     notion_entry: dict | None,
     obsidian_papers_dir: Path,
     obsidian_pdfs_dir: Path,
@@ -61,7 +61,7 @@ def write_obsidian_paper(
     frontmatter = collect_paper_yaml(arxiv_paper, notion_entry)
     _authors_wikified = ", ".join([get_author_wiki(author.name) for author in arxiv_paper.authors])
     arxiv_paper_summary = arxiv_paper.summary.replace("-\n", "-").replace("\n", " ")
-    published: datetime = arxiv_paper.published  # type: ignore
+    published: datetime = arxiv_paper.published
     published_pretty = inflect_day(published.day) + published.strftime(" %B %Y (%A) @ %H:%M:%S")
     metadata_fields = (
         f"Title: {arxiv_paper.title}",
@@ -93,7 +93,7 @@ def write_obsidian_paper(
             LOGGER.info("Skipping. PDF already present in database:")
             LOGGER.info(str(pdf_path))
         else:
-            arxiv_paper.download_pdf(dirpath=obsidian_pdfs_dir, filename=pdf_filename)  # type: ignore
+            arxiv_paper.download_pdf(dirpath=str(obsidian_pdfs_dir), filename=pdf_filename)
             LOGGER.info(str(pdf_path))
 
         # add pdf to index as CSV row using csv module if not already present by checking entry_id
@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--no_pdf", action="store_false", dest="download_pdf")
     args = parser.parse_args()
     args.id_list = [canonicalise_arxiv(arxiv_id) for arxiv_id in args.id_list]
-    for arxiv_paper in arxiv.Search(id_list=args.id_list, max_results=args.max_results).results():
+    for arxiv_paper in arxiv.Client().results((arxiv.Search(id_list=args.id_list, max_results=args.max_results))):
         write_obsidian_paper(arxiv_paper, None, PAPERS_DIR, PDFS_DIR, args.download_pdf, False)
 
 
