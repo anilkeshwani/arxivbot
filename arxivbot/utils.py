@@ -24,7 +24,7 @@ def canonicalise_arxiv(arxiv_like: str) -> str:
         raise ValueError("Got empty string for arxiv_like.")
 
     # Regex for modern arXiv IDs, with optional version
-    match = re.search(r"(\d{4}\.\d{5}(v\d+)?)", arxiv_like)
+    match = re.search(r"(\d{4}\.\d{4,5}(v\d+)?)", arxiv_like)
     if match:
         return match.group(1)
     else:
