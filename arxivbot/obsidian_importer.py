@@ -23,10 +23,7 @@ from arxivbot.constants import (
 from arxivbot.utils import canonicalise_arxiv, inflect_day
 
 
-# TODO is this best practice?
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
-LOGGER.addHandler(logging.StreamHandler())
 
 
 def get_author_wiki(author_name, people_dir: Path | str = "People"):

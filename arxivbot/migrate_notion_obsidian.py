@@ -22,8 +22,6 @@ from arxivbot.utils import canonicalise_arxiv
 
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
-LOGGER.addHandler(logging.StreamHandler())
 
 # constants
 ARXIV_MIGRATION_COMPLETE = False  # lets me move on to non-arXiv migration
