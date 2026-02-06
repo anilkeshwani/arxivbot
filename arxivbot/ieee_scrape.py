@@ -49,8 +49,8 @@ def extract_salient_fields_from_metadata(metadata: dict) -> dict:
     return salient
 
 
-# Example usage:
-url = "https://ieeexplore.ieee.org/document/9381663"
-metadata = extract_metadata(url)
-salient = extract_salient_fields_from_metadata(metadata)
-pprint(salient, width=180)
+if __name__ == "__main__":
+    url = "https://ieeexplore.ieee.org/document/9381663"
+    metadata = extract_metadata(url)
+    salient = extract_salient_fields_from_metadata(metadata)
+    pprint(salient, width=180)

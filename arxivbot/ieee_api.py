@@ -20,6 +20,7 @@ def get_ieee_paper_data(article_number):
     return paper_data
 
 
-article_number = "9381661"
-paper_data = get_ieee_paper_data(article_number)
-print(paper_data)
+if __name__ == "__main__":
+    article_number = "9381661"
+    paper_data = get_ieee_paper_data(article_number)
+    print(paper_data)
