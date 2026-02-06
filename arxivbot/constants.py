@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 
 
-OBSIDIAN_VAULT_DIR = Path("~/Desktop/journal/").expanduser().resolve()
+OBSIDIAN_VAULT_DIR = Path(os.environ.get("OBSIDIAN_VAULT_DIR", "~/Desktop/journal/")).expanduser().resolve()
 PAPERS_DIR = OBSIDIAN_VAULT_DIR / "Papers"
 PDFS_DIR = OBSIDIAN_VAULT_DIR / "PDFs"
 PDFS_INDEX = PDFS_DIR / "index.tsv"
