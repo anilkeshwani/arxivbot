@@ -26,4 +26,5 @@ lines_after_imports = 2
 force_alphabetical_sort_within_sections = true
 
 [project.scripts]
+notion-import = "arxivbot.notion_importer:cli"
 obsidian-import = "arxivbot.obsidian_importer:main"

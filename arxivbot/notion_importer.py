@@ -115,7 +115,7 @@ def clargs():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def cli():
     args = clargs()
     main(
         args.arxiv_list,
@@ -124,3 +124,7 @@ if __name__ == "__main__":
         add_topic_tag=args.add_topic_tag,
         add_arxiv_type=args.add_arxiv_type,
     )
+
+
+if __name__ == "__main__":
+    cli()
