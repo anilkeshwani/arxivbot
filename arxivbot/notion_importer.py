@@ -24,7 +24,7 @@ def search_arxiv(
     if query is not None:
         kwargs["query"] = query  # type: ignore
     search = arxiv.Search(**kwargs)
-    return search.results()
+    return arxiv.Client().results(search)
 
 
 def check_row_exists(notion: Client, database_id: str, entry_id: str) -> bool:
