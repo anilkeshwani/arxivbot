@@ -16,7 +16,9 @@ from urllib.parse import urlparse
 import arxiv
 
 from arxivbot.constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR
-from arxivbot.utils import canonicalise_arxiv, write_obsidian_paper
+from arxivbot.constants import PDFS_DIR
+from arxivbot.obsidian_importer import write_obsidian_paper
+from arxivbot.utils import canonicalise_arxiv
 
 
 LOGGER = logging.getLogger(__name__)
@@ -61,21 +63,22 @@ if __name__ == "__main__":
         n_arxiv = len(entries)
         arxiv_id_list: list[str] = [entry["arxiv_id"] for entry in entries]
         n_batches = -(n_arxiv // -BATCH_SIZE)  # ceil
+        client = arxiv.Client()
 
         for idx_batch in range(n_batches):
             if (idx_batch + 1) == n_batches:
                 print(f"Retrieving entries {(BATCH_SIZE * idx_batch, n_arxiv)}")
-                results = arxiv.Search(id_list=arxiv_id_list[BATCH_SIZE * idx_batch : n_arxiv]).results()
+                search = arxiv.Search(id_list=arxiv_id_list[BATCH_SIZE * idx_batch : n_arxiv])
                 entries_slice = entries[BATCH_SIZE * idx_batch : n_arxiv]
-                for arxiv_paper, notion_entry in zip(results, entries_slice):
-                    write_obsidian_paper(arxiv_paper, notion_entry, PAPERS_DIR)
+                for arxiv_paper, notion_entry in zip(client.results(search), entries_slice):
+                    write_obsidian_paper(arxiv_paper, notion_entry, PAPERS_DIR, PDFS_DIR, download_pdf=False)
             else:
                 print(f"Retrieving entries {(BATCH_SIZE * idx_batch, BATCH_SIZE * (idx_batch + 1))}")
-                results = arxiv.Search(
+                search = arxiv.Search(
                     id_list=arxiv_id_list[BATCH_SIZE * idx_batch : BATCH_SIZE * (idx_batch + 1)]
-                ).results()
+                )
                 entries_slice = entries[BATCH_SIZE * idx_batch : BATCH_SIZE * (idx_batch + 1)]
-                for arxiv_paper, notion_entry in zip(results, entries_slice):
-                    write_obsidian_paper(arxiv_paper, notion_entry, PAPERS_DIR)
+                for arxiv_paper, notion_entry in zip(client.results(search), entries_slice):
+                    write_obsidian_paper(arxiv_paper, notion_entry, PAPERS_DIR, PDFS_DIR, download_pdf=False)
 
     pprint([_["Name"] for _ in non_arxiv_entries])  # show the papers that we haven't saved via arXiv links
