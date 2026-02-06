@@ -103,9 +103,9 @@ def clargs():
     parser = ArgumentParser()
     parser.add_argument("arxiv_list", type=str, nargs="+")
     parser.add_argument("--max_results", type=int, default=10**10)
-    parser.add_argument("--add_abstract", type=bool, default=True)
-    parser.add_argument("--add_topic_tag", type=bool, default=False)
-    parser.add_argument("--add_arxiv_type", type=bool, default=False)
+    parser.add_argument("--no_abstract", action="store_false", dest="add_abstract")
+    parser.add_argument("--add_topic_tag", action="store_true")
+    parser.add_argument("--add_arxiv_type", action="store_true")
     """
     # arguments retained for posterity in case of future expansion of functionality. Not currently supported.
     parser.add_argument("--query", type=str, default=None)
