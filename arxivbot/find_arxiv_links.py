@@ -5,9 +5,9 @@ import re
 from pathlib import Path
 
 
-# return string matches for the regex pattern: arxiv.org\/...\/[0-9]{4}\.[0-9]{5}
 def find_arxiv_links(text):
-    pattern = re.compile(r"arxiv.org\/...\/([0-9]{4}\.[0-9]{5}v?[0-9]*)")
+    """Find arXiv IDs in URLs like arxiv.org/abs/YYMM.NNNNN or arxiv.org/pdf/YYMM.NNNNN."""
+    pattern = re.compile(r"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5}(?:v\d+)?)")
     return pattern.findall(text)
 
 
