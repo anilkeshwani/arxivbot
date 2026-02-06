@@ -27,20 +27,18 @@ def search_arxiv(
     return search.results()
 
 
-def check_row_exists(arxiv_like: str) -> bool:
-    """Check whether a row with the given arXiv ID already exists in the database.
+def check_row_exists(notion: Client, database_id: str, entry_id: str) -> bool:
+    """Check whether a row with the given arXiv entry URL already exists in the database.
 
     Args:
-        arxiv_like (str): An arXiv ID or URL.
+        notion (Client): An authenticated Notion client.
+        database_id (str): The Notion database ID to query.
+        entry_id (str): The arXiv entry URL (e.g. arxiv_paper.entry_id).
 
     Returns:
-        tuple[bool, str]: Boolean indicating whether the row exists, and the normalized arXiv ID.
+        bool: Whether a row with this Link already exists.
     """
-    load_dotenv()  # load READING_LIST_DATABASE_ID from .env file
-    notion = Client(auth=os.environ["NOTION_TOKEN"])  # must be exported as environment variable
-    database_id = os.environ["READING_LIST_DATABASE_ID"]
-    arxiv_id = canonicalise_arxiv(arxiv_like)
-    rows = notion.databases.query(database_id=database_id, filter={"property": "Link", "url": {"equals": arxiv_like}})
+    rows = notion.databases.query(database_id=database_id, filter={"property": "Link", "url": {"equals": entry_id}})
     return len(rows["results"]) != 0
 
 
@@ -57,7 +55,7 @@ def main(
     database_id = os.environ["READING_LIST_DATABASE_ID"]
     arxiv_list = [canonicalise_arxiv(arxiv_like) for arxiv_like in arxiv_list]
     for arxiv_paper in search_arxiv(id_list=arxiv_list, max_results=max_results):
-        row_present = check_row_exists(arxiv_paper.entry_id)
+        row_present = check_row_exists(notion, database_id, arxiv_paper.entry_id)
         if row_present:
             print(f"Skipping {arxiv_paper.title} (URL: {arxiv_paper.entry_id}) as it already exists in the database.")
             continue
