@@ -97,9 +97,11 @@ def write_obsidian_paper(
             LOGGER.info(str(pdf_path))
 
         # add pdf to index as CSV row using csv module if not already present by checking entry_id
-        pdfs_index = list(csv.reader(open(PDFS_INDEX, "r"), delimiter="\t"))
+        id_col = PDFS_INDEX_FIELD_NAMES.index(PDFS_INDEX_ID)
+        with open(PDFS_INDEX, "r") as index_f:
+            pdfs_index = list(csv.reader(index_f, delimiter="\t"))
         assert pdfs_index[0] == PDFS_INDEX_FIELD_NAMES, "PDFs index header is incorrect. Check PDFS_INDEX_FIELD_NAMES."
-        if arxiv_paper.entry_id in [PDFS_INDEX_FIELD_NAMES.index(PDFS_INDEX_ID) for row in pdfs_index]:
+        if arxiv_paper.entry_id in [row[id_col] for row in pdfs_index[1:]]:
             LOGGER.info(f"Skipping addition of PDF to index ({PDFS_INDEX}). PDF already present in index.")
         else:
             current_time = datetime.now().isoformat()
