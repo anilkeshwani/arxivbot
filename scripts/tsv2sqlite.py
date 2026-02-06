@@ -1,6 +1,11 @@
 import csv
+import re
 import sqlite3
+from argparse import ArgumentParser
 from datetime import datetime, timezone
+
+
+TABLE_NAME = "arxiv_papers"
 
 
 def parse_date(date_string):
@@ -10,7 +15,14 @@ def parse_date(date_string):
         return datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=timezone.utc)
 
 
-def tsv_to_sqlite(tsv_file, db_file, table_name):
+def _validate_table_name(name):
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
+        raise ValueError(f"Invalid table name: {name!r}")
+    return name
+
+
+def tsv_to_sqlite(tsv_file, db_file, table_name=TABLE_NAME):
+    _validate_table_name(table_name)
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
 
@@ -61,5 +73,10 @@ def tsv_to_sqlite(tsv_file, db_file, table_name):
         conn.close()
 
 
-# Example usage
-tsv_to_sqlite("/Users/anilkeshwani/Desktop/journal/PDFs/index.tsv", "papers.db", "arxiv_papers")
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Convert a TSV PDF index to a SQLite database")
+    parser.add_argument("tsv_file", help="path to the input TSV file")
+    parser.add_argument("db_file", help="path to the output SQLite database file")
+    parser.add_argument("--table_name", default=TABLE_NAME, help=f"table name (default: {TABLE_NAME})")
+    args = parser.parse_args()
+    tsv_to_sqlite(args.tsv_file, args.db_file, args.table_name)
