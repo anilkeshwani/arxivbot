@@ -12,7 +12,7 @@ dynamic = ["dependencies", "version", "readme"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
-readme = { file = ["README.rst"] }
+readme = { file = ["README.md"] }
 
 [tool.setuptools_scm]
 
