@@ -5,10 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arxivbot"
 authors = [{ name = "Anil Keshwani", email = "anilkeshwani@hotmail.com" }]
-description = "A minimal arXiv clipper"
+description = "A minimal paper clipper for Obsidian, powered by Semantic Scholar"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dynamic = ["dependencies", "version", "readme"]
+
+[tool.setuptools.packages.find]
+include = ["arxivbot*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
