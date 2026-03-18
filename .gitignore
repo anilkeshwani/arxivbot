@@ -2,6 +2,7 @@
 
 output/
 credentials.env
+_test_vault/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
