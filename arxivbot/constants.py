@@ -28,5 +28,7 @@ S2_FIELDS = [
     "influentialCitationCount",
 ]
 
+S2_BATCH_SIZE = 500  # Max IDs per POST /paper/batch request
+
 # Database
 DB_PATH = OBSIDIAN_VAULT_DIR / ".papers.db"
