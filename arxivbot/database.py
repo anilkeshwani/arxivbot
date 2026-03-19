@@ -45,8 +45,14 @@ def init_db(db_path: Path) -> None:
         conn.executescript(_SCHEMA)
 
 
-def paper_exists(db_path: Path, *, paper_id: str | None = None, arxiv_id: str | None = None) -> bool:
-    """Check if a paper exists in the database by S2 paper_id or arXiv ID."""
+def paper_exists(
+    db_path: Path,
+    *,
+    paper_id: str | None = None,
+    arxiv_id: str | None = None,
+    doi: str | None = None,
+) -> bool:
+    """Check if a paper exists in the database by S2 paper_id, arXiv ID, or DOI."""
     with _get_connection(db_path) as conn:
         if paper_id:
             row = conn.execute("SELECT 1 FROM papers WHERE paper_id = ?", (paper_id,)).fetchone()
@@ -54,6 +60,10 @@ def paper_exists(db_path: Path, *, paper_id: str | None = None, arxiv_id: str | 
                 return True
         if arxiv_id:
             row = conn.execute("SELECT 1 FROM papers WHERE arxiv_id = ?", (arxiv_id,)).fetchone()
+            if row:
+                return True
+        if doi:
+            row = conn.execute("SELECT 1 FROM papers WHERE doi = ?", (doi,)).fetchone()
             if row:
                 return True
     return False
