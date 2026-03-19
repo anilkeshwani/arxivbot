@@ -172,10 +172,13 @@ def write_obsidian_paper(
                 LOGGER.info("Skipping. PDF already present in vault:")
                 LOGGER.info(str(pdf_path))
             else:
-                response = requests.get(pdf_url, timeout=60)
-                response.raise_for_status()
-                pdf_path.write_bytes(response.content)
-                LOGGER.info(str(pdf_path))
+                try:
+                    response = requests.get(pdf_url, timeout=60)
+                    response.raise_for_status()
+                    pdf_path.write_bytes(response.content)
+                    LOGGER.info(str(pdf_path))
+                except requests.RequestException as e:
+                    LOGGER.warning("PDF download failed for %r: %s", pdf_url, e)
 
     return obsidian_paper
 
@@ -237,13 +240,16 @@ def fetch_paper(sch: SemanticScholar, paper_id: str) -> dict:
     return _normalize_paper(paper)
 
 
-def fetch_papers_batch(sch: SemanticScholar, paper_ids: list[str]) -> tuple[list[dict], list[str]]:
+def fetch_papers_batch(
+    sch: SemanticScholar, paper_ids: list[str]
+) -> tuple[list[dict], list[str], list[str]]:
     """Fetch papers in batch via POST /paper/batch, chunking if needed.
 
-    Returns (normalized_papers, not_found_ids).
+    Returns (normalized_papers, not_found_ids, failed_ids).
     """
     all_papers: list[dict] = []
     all_not_found: list[str] = []
+    all_failed: list[str] = []
 
     for i in range(0, len(paper_ids), S2_BATCH_SIZE):
         chunk = paper_ids[i : i + S2_BATCH_SIZE]
@@ -251,12 +257,17 @@ def fetch_papers_batch(sch: SemanticScholar, paper_ids: list[str]) -> tuple[list
             papers, not_found = sch.get_papers(chunk, fields=S2_FIELDS, return_not_found=True)
         except Exception as e:
             LOGGER.error(f"Batch fetch failed for chunk {i // S2_BATCH_SIZE + 1}: {e}")
-            all_not_found.extend(chunk)
+            all_failed.extend(chunk)
             continue
-        all_papers.extend(_normalize_paper(p) for p in papers)
+        for p in papers:
+            try:
+                all_papers.append(_normalize_paper(p))
+            except Exception as e:
+                paper_id = getattr(p, "paperId", "unknown")
+                LOGGER.error(f"Failed to normalize paper {paper_id}: {e}")
         all_not_found.extend(not_found)
 
-    return all_papers, all_not_found
+    return all_papers, all_not_found, all_failed
 
 
 def _process_paper(paper: dict, download_pdf: bool) -> None:
@@ -334,13 +345,19 @@ def main():
 
     # Phase 2: Batch fetch from S2 API
     LOGGER.info(f"Fetching {len(s2_ids)} paper(s) from Semantic Scholar...")
-    papers, not_found = fetch_papers_batch(sch, s2_ids)
+    papers, not_found, failed = fetch_papers_batch(sch, s2_ids)
 
     for nf_id in not_found:
         raw = raw_by_s2_id.get(nf_id, nf_id)
         LOGGER.warning(f"Paper not found: {raw!r} (resolved to {nf_id!r})")
 
-    LOGGER.info(f"Retrieved {len(papers)} paper(s), {len(not_found)} not found.")
+    for fail_id in failed:
+        raw = raw_by_s2_id.get(fail_id, fail_id)
+        LOGGER.error(f"Failed to fetch (API error): {raw!r} (resolved to {fail_id!r})")
+
+    LOGGER.info(
+        f"Retrieved {len(papers)} paper(s), {len(not_found)} not found, {len(failed)} failed."
+    )
 
     # Phase 3: Process each fetched paper (DB upsert + Obsidian note)
     for paper in papers:
