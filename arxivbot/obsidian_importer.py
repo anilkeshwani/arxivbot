@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from pathvalidate import sanitize_filename
 from semanticscholar import SemanticScholar
 
-from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_FIELDS
+from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
 from arxivbot.database import init_db, upsert_paper
 from arxivbot.utils import inflect_day, parse_paper_id
 
@@ -180,10 +180,8 @@ def write_obsidian_paper(
     return obsidian_paper
 
 
-def fetch_paper(sch: SemanticScholar, paper_id: str) -> dict:
-    """Fetch a paper from S2 API and return a normalized dict."""
-    paper = sch.get_paper(paper_id, fields=S2_FIELDS)
-
+def _normalize_paper(paper) -> dict:
+    """Normalize an S2 Paper object into a flat dict for downstream consumption."""
     external_ids = paper.externalIds or {}
     arxiv_id = external_ids.get("ArXiv")
     doi = external_ids.get("DOI")
@@ -233,6 +231,75 @@ def fetch_paper(sch: SemanticScholar, paper_id: str) -> dict:
     }
 
 
+def fetch_paper(sch: SemanticScholar, paper_id: str) -> dict:
+    """Fetch a single paper from S2 API and return a normalized dict."""
+    paper = sch.get_paper(paper_id, fields=S2_FIELDS)
+    return _normalize_paper(paper)
+
+
+def fetch_papers_batch(sch: SemanticScholar, paper_ids: list[str]) -> tuple[list[dict], list[str]]:
+    """Fetch papers in batch via POST /paper/batch, chunking if needed.
+
+    Returns (normalized_papers, not_found_ids).
+    """
+    all_papers: list[dict] = []
+    all_not_found: list[str] = []
+
+    for i in range(0, len(paper_ids), S2_BATCH_SIZE):
+        chunk = paper_ids[i : i + S2_BATCH_SIZE]
+        try:
+            papers, not_found = sch.get_papers(chunk, fields=S2_FIELDS, return_not_found=True)
+        except Exception as e:
+            LOGGER.error(f"Batch fetch failed for chunk {i // S2_BATCH_SIZE + 1}: {e}")
+            all_not_found.extend(chunk)
+            continue
+        all_papers.extend(_normalize_paper(p) for p in papers)
+        all_not_found.extend(not_found)
+
+    return all_papers, all_not_found
+
+
+def _process_paper(paper: dict, download_pdf: bool) -> None:
+    """Upsert a normalized paper dict into the DB and write an Obsidian note."""
+    upsert_paper(
+        DB_PATH,
+        paper_id=paper["paper_id"],
+        title=paper["title"],
+        authors=paper["authors"],
+        abstract=paper["abstract"],
+        publication_date=paper["publication_date"],
+        year=paper["year"],
+        arxiv_id=paper["arxiv_id"],
+        doi=paper["doi"],
+        venue=paper["venue"],
+        tldr=paper["tldr"],
+        s2_url=paper["s2_url"],
+        fields_of_study=paper["fields_of_study"],
+        citation_count=paper["citation_count"],
+        influential_citation_count=paper["influential_citation_count"],
+        open_access_pdf_url=paper["open_access_pdf_url"],
+    )
+
+    pub_date = _parse_publication_date(paper["publication_date"])
+
+    write_obsidian_paper(
+        title=paper["title"],
+        authors=paper["authors"],
+        abstract=paper["abstract"] or "",
+        published_date=pub_date,
+        year=paper["year"],
+        link=paper["link"],
+        doi=paper["doi"] or "",
+        venue=paper["venue"],
+        tldr=paper["tldr"],
+        notion_entry=None,
+        obsidian_papers_dir=PAPERS_DIR,
+        obsidian_pdfs_dir=PDFS_DIR,
+        download_pdf=download_pdf,
+        pdf_url=paper["pdf_url"],
+    )
+
+
 def main():
     parser = ArgumentParser(description="Import papers to Obsidian vault via Semantic Scholar API")
     parser.add_argument("id_list", type=str, nargs="+", help="Paper identifiers (arXiv IDs/URLs, S2 IDs/URLs, DOIs)")
@@ -246,59 +313,41 @@ def main():
     api_key = _load_s2_api_key()
     sch = SemanticScholar(api_key=api_key) if api_key else SemanticScholar()
 
+    # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
+    s2_ids: list[str] = []
+    raw_by_s2_id: dict[str, str] = {}  # s2_id -> first raw input (for error messages)
     for raw_id in args.id_list:
         try:
             s2_id = parse_paper_id(raw_id)
         except ValueError as e:
             LOGGER.error(f"Skipping {raw_id!r}: {e}")
             continue
-
-        try:
-            paper = fetch_paper(sch, s2_id)
-        except Exception as e:
-            LOGGER.error(f"Failed to fetch {raw_id!r} (resolved to {s2_id!r}): {e}")
+        if s2_id in raw_by_s2_id:
+            LOGGER.warning(f"Skipping {raw_id!r}: resolves to same ID as {raw_by_s2_id[s2_id]!r}")
             continue
+        s2_ids.append(s2_id)
+        raw_by_s2_id[s2_id] = raw_id
 
-        # Upsert into database
-        upsert_paper(
-            DB_PATH,
-            paper_id=paper["paper_id"],
-            title=paper["title"],
-            authors=paper["authors"],
-            abstract=paper["abstract"],
-            publication_date=paper["publication_date"],
-            year=paper["year"],
-            arxiv_id=paper["arxiv_id"],
-            doi=paper["doi"],
-            venue=paper["venue"],
-            tldr=paper["tldr"],
-            s2_url=paper["s2_url"],
-            fields_of_study=paper["fields_of_study"],
-            citation_count=paper["citation_count"],
-            influential_citation_count=paper["influential_citation_count"],
-            open_access_pdf_url=paper["open_access_pdf_url"],
-        )
+    if not s2_ids:
+        LOGGER.error("No valid paper identifiers provided.")
+        return
 
-        # Parse publication date
-        pub_date = _parse_publication_date(paper["publication_date"])
+    # Phase 2: Batch fetch from S2 API
+    LOGGER.info(f"Fetching {len(s2_ids)} paper(s) from Semantic Scholar...")
+    papers, not_found = fetch_papers_batch(sch, s2_ids)
 
-        # Write Obsidian note
-        write_obsidian_paper(
-            title=paper["title"],
-            authors=paper["authors"],
-            abstract=paper["abstract"] or "",
-            published_date=pub_date,
-            year=paper["year"],
-            link=paper["link"],
-            doi=paper["doi"] or "",
-            venue=paper["venue"],
-            tldr=paper["tldr"],
-            notion_entry=None,
-            obsidian_papers_dir=PAPERS_DIR,
-            obsidian_pdfs_dir=PDFS_DIR,
-            download_pdf=args.download_pdf,
-            pdf_url=paper["pdf_url"],
-        )
+    for nf_id in not_found:
+        raw = raw_by_s2_id.get(nf_id, nf_id)
+        LOGGER.warning(f"Paper not found: {raw!r} (resolved to {nf_id!r})")
+
+    LOGGER.info(f"Retrieved {len(papers)} paper(s), {len(not_found)} not found.")
+
+    # Phase 3: Process each fetched paper (DB upsert + Obsidian note)
+    for paper in papers:
+        try:
+            _process_paper(paper, args.download_pdf)
+        except Exception as e:
+            LOGGER.error(f"Failed to process {paper['title']!r}: {e}")
 
 
 if __name__ == "__main__":
