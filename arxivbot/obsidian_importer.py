@@ -16,7 +16,7 @@ from pathvalidate import sanitize_filename
 from semanticscholar import SemanticScholar
 
 from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
-from arxivbot.database import init_db, upsert_paper
+from arxivbot.database import init_db, paper_exists, upsert_paper
 from arxivbot.utils import inflect_day, parse_paper_id
 
 
@@ -311,10 +311,20 @@ def _process_paper(paper: dict, download_pdf: bool) -> None:
     )
 
 
+def _paper_exists_locally(s2_id: str) -> bool:
+    """Check whether a paper is already in the local DB, given its S2 query ID."""
+    if s2_id.startswith("ARXIV:"):
+        return paper_exists(DB_PATH, arxiv_id=s2_id.removeprefix("ARXIV:"))
+    if s2_id.startswith("DOI:"):
+        return paper_exists(DB_PATH, doi=s2_id.removeprefix("DOI:"))
+    return paper_exists(DB_PATH, paper_id=s2_id)
+
+
 def main():
     parser = ArgumentParser(description="Import papers to Obsidian vault via Semantic Scholar API")
     parser.add_argument("id_list", type=str, nargs="+", help="Paper identifiers (arXiv IDs/URLs, S2 IDs/URLs, DOIs)")
     parser.add_argument("--no_pdf", action="store_false", dest="download_pdf", help="Skip PDF download")
+    parser.add_argument("--force", action="store_true", help="Re-fetch papers even if already in local database")
     args = parser.parse_args()
 
     # Initialize database
@@ -327,6 +337,7 @@ def main():
     # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
     s2_ids: list[str] = []
     raw_by_s2_id: dict[str, str] = {}  # s2_id -> first raw input (for error messages)
+    skipped_local: list[str] = []
     for raw_id in args.id_list:
         try:
             s2_id = parse_paper_id(raw_id)
@@ -336,11 +347,20 @@ def main():
         if s2_id in raw_by_s2_id:
             LOGGER.warning(f"Skipping {raw_id!r}: resolves to same ID as {raw_by_s2_id[s2_id]!r}")
             continue
+        if not args.force and _paper_exists_locally(s2_id):
+            skipped_local.append(raw_id)
+            continue
         s2_ids.append(s2_id)
         raw_by_s2_id[s2_id] = raw_id
 
+    for raw_id in skipped_local:
+        LOGGER.info(f"Already in local database, skipping: {raw_id!r} (use --force to re-fetch)")
+
     if not s2_ids:
-        LOGGER.error("No valid paper identifiers provided.")
+        if skipped_local:
+            LOGGER.info("All papers already in local database. Nothing to fetch.")
+        else:
+            LOGGER.error("No valid paper identifiers provided.")
         return
 
     # Phase 2: Batch fetch from S2 API
