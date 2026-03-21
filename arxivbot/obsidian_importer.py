@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from argparse import ArgumentParser
 from datetime import date
 from pathlib import Path
@@ -13,6 +14,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 from pathvalidate import sanitize_filename
+from rich.logging import RichHandler
 from semanticscholar import SemanticScholar
 
 from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
@@ -21,8 +23,6 @@ from arxivbot.utils import inflect_day, parse_paper_id
 
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
-LOGGER.addHandler(logging.StreamHandler())
 
 
 def _load_s2_api_key() -> str | None:
@@ -71,6 +71,11 @@ def collect_paper_yaml(
     doi: str,
     venue: str,
     tldr: str,
+    arxiv_id: str,
+    s2_paper_id: str,
+    s2_url: str,
+    pdf_url: str,
+    citation_count: int,
     notion_entry: dict | None,
 ) -> str:
     """Build YAML frontmatter string.
@@ -86,6 +91,11 @@ def collect_paper_yaml(
         "doi": doi,
         "venue": venue,
         "tldr": tldr,
+        "arxiv_id": arxiv_id,
+        "s2_paper_id": s2_paper_id,
+        "s2_url": s2_url,
+        "pdf_url": pdf_url,
+        "citation_count": citation_count,
         "code": notion_entry["Code"] if notion_entry is not None else "",
         "page": notion_entry["Page"] if notion_entry is not None else "",
         "demo": notion_entry["Demo"] if notion_entry is not None else "",
@@ -93,6 +103,95 @@ def collect_paper_yaml(
     }
     frontmatter = yaml.dump(frontmatter_fields, sort_keys=False, allow_unicode=True)
     return "---" + "\n" + frontmatter + "---" + "\n"
+
+
+# Target frontmatter key order for consistent notes
+_FRONTMATTER_KEY_ORDER = [
+    "title", "authors", "published", "link", "doi", "venue", "tldr",
+    "arxiv_id", "s2_paper_id", "s2_url", "pdf_url", "citation_count",
+    "code", "page", "demo", "tags",
+]
+
+
+def _update_existing_note(note_path: Path, new_fields: dict) -> None:
+    """Additively merge new frontmatter fields into an existing Obsidian note.
+
+    Only missing keys are added — existing values are NEVER overwritten.
+    Fields are inserted in the canonical order defined by _FRONTMATTER_KEY_ORDER.
+    """
+    text = note_path.read_text(encoding="utf-8")
+
+    # Split on the YAML front-matter delimiters (first two '---' lines)
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        LOGGER.warning("Could not parse frontmatter in %s — skipping update", note_path)
+        return
+
+    existing_fm = yaml.safe_load(parts[1])
+    if not isinstance(existing_fm, dict):
+        LOGGER.warning("Frontmatter is not a dict in %s — skipping update", note_path)
+        return
+
+    body = parts[2]  # everything after the closing '---'
+
+    # Determine which keys are actually new
+    keys_to_add = {k: v for k, v in new_fields.items() if k not in existing_fm}
+    if not keys_to_add:
+        LOGGER.info("No new frontmatter keys to add for %s", note_path.name)
+        return
+
+    # Build merged dict in canonical order
+    merged: dict = {}
+    for key in _FRONTMATTER_KEY_ORDER:
+        if key in existing_fm:
+            merged[key] = existing_fm[key]
+        elif key in keys_to_add:
+            merged[key] = keys_to_add[key]
+    # Preserve any keys not in the canonical order (shouldn't happen, but be safe)
+    for key in existing_fm:
+        if key not in merged:
+            merged[key] = existing_fm[key]
+
+    new_frontmatter = yaml.dump(merged, sort_keys=False, allow_unicode=True)
+    note_path.write_text("---\n" + new_frontmatter + "---" + body, encoding="utf-8")
+    LOGGER.info("Updated frontmatter (%d new keys) for %s", len(keys_to_add), note_path.name)
+
+
+def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
+    """Build a mapping from normalized (versionless) arXiv ID to existing note path.
+
+    Scans all .md files once, extracting arXiv IDs from frontmatter (arxiv_id field
+    or link field). First match wins — if two files share the same arXiv ID, the
+    first one found is kept.
+    """
+    index: dict[str, Path] = {}
+    for md in papers_dir.glob("*.md"):
+        try:
+            text = md.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            continue
+        try:
+            fm = yaml.safe_load(parts[1])
+        except yaml.YAMLError:
+            continue
+        if not isinstance(fm, dict):
+            continue
+        # Check arxiv_id field
+        aid = str(fm.get("arxiv_id", "") or "")
+        if aid:
+            clean = re.sub(r"v\d+$", "", aid)
+            index.setdefault(clean, md)
+            continue
+        # Fall back to extracting from link
+        link = str(fm.get("link", "") or "")
+        m = re.search(r"(\d{4}\.\d{4,5})", link)
+        if m:
+            index.setdefault(m.group(1), md)
+    LOGGER.info("Built arXiv index: %d papers with arXiv IDs", len(index))
+    return index
 
 
 def write_obsidian_paper(
@@ -105,12 +204,17 @@ def write_obsidian_paper(
     doi: str,
     venue: str,
     tldr: str,
-    notion_entry: dict | None,
-    obsidian_papers_dir: Path,
-    obsidian_pdfs_dir: Path,
-    download_pdf: bool,
-    pdf_url: str | None,
+    arxiv_id: str = "",
+    s2_paper_id: str = "",
+    s2_url: str = "",
+    pdf_url: str | None = None,
+    citation_count: int = 0,
+    notion_entry: dict | None = None,
+    obsidian_papers_dir: Path = PAPERS_DIR,
+    obsidian_pdfs_dir: Path = PDFS_DIR,
+    download_pdf: bool = True,
     log_fileexistserror: bool = False,
+    arxiv_index: dict[str, Path] | None = None,
 ) -> str:
     MD_LINE_ENDING = "  \n"
 
@@ -122,7 +226,11 @@ def write_obsidian_paper(
     else:
         published_str = ""
 
-    frontmatter = collect_paper_yaml(title, authors, published_str, link, doi, venue, tldr, notion_entry)
+    frontmatter = collect_paper_yaml(
+        title, authors, published_str, link, doi, venue, tldr,
+        arxiv_id, s2_paper_id, s2_url, pdf_url or "", citation_count,
+        notion_entry,
+    )
 
     # Wikified authors
     _authors_wikified = ", ".join([get_author_wiki(name) for name in authors])
@@ -151,15 +259,40 @@ def write_obsidian_paper(
 
     filename = sanitize_filename(title.replace(".", " "))
     obsidian_paper_path = (obsidian_papers_dir / filename).with_suffix(".md")
-    try:
-        with open(obsidian_paper_path, "x") as f:
-            f.write(obsidian_paper)
+
+    s2_fields = {
+        "doi": doi,
+        "venue": venue,
+        "tldr": tldr,
+        "arxiv_id": arxiv_id,
+        "s2_paper_id": s2_paper_id,
+        "s2_url": s2_url,
+        "pdf_url": pdf_url or "",
+        "citation_count": citation_count,
+    }
+
+    # Check if a note with the same arXiv ID already exists under a different filename
+    existing_path = None
+    if arxiv_id and arxiv_index:
+        clean_id = re.sub(r"v\d+$", "", arxiv_id)
+        existing_path = arxiv_index.get(clean_id)
+
+    if existing_path and existing_path != obsidian_paper_path:
+        LOGGER.info("Paper exists under different name, updating frontmatter:")
+        LOGGER.info("  existing: %s", existing_path.name)
+        LOGGER.info("  S2 title: %s", filename)
+        _update_existing_note(existing_path, s2_fields)
+    else:
+        try:
+            with open(obsidian_paper_path, "x") as f:
+                f.write(obsidian_paper)
+                LOGGER.info(str(obsidian_paper_path))
+        except FileExistsError as fee:
+            LOGGER.info("Paper already present in vault, updating frontmatter:")
             LOGGER.info(str(obsidian_paper_path))
-    except FileExistsError as fee:
-        LOGGER.info("Skipping. Paper already present in vault:")
-        LOGGER.info(str(obsidian_paper_path))
-        if log_fileexistserror:
-            LOGGER.exception(fee)
+            _update_existing_note(obsidian_paper_path, s2_fields)
+            if log_fileexistserror:
+                LOGGER.exception(fee)
 
     if download_pdf and pdf_url:
         parsed_url = urlparse(pdf_url)
@@ -270,7 +403,7 @@ def fetch_papers_batch(
     return all_papers, all_not_found, all_failed
 
 
-def _process_paper(paper: dict, download_pdf: bool) -> None:
+def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path] | None = None) -> None:
     """Upsert a normalized paper dict into the DB and write an Obsidian note."""
     upsert_paper(
         DB_PATH,
@@ -303,11 +436,13 @@ def _process_paper(paper: dict, download_pdf: bool) -> None:
         doi=paper["doi"] or "",
         venue=paper["venue"],
         tldr=paper["tldr"],
-        notion_entry=None,
-        obsidian_papers_dir=PAPERS_DIR,
-        obsidian_pdfs_dir=PDFS_DIR,
-        download_pdf=download_pdf,
+        arxiv_id=paper["arxiv_id"] or "",
+        s2_paper_id=paper["paper_id"] or "",
+        s2_url=paper["s2_url"],
         pdf_url=paper["pdf_url"],
+        citation_count=paper["citation_count"],
+        download_pdf=download_pdf,
+        arxiv_index=arxiv_index,
     )
 
 
@@ -326,6 +461,17 @@ def main():
     parser.add_argument("--no_pdf", action="store_false", dest="download_pdf", help="Skip PDF download")
     parser.add_argument("--force", action="store_true", help="Re-fetch papers even if already in local database")
     args = parser.parse_args()
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, show_path=False)],
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("dotenv.main").setLevel(logging.ERROR)
 
     # Initialize database
     init_db(DB_PATH)
@@ -379,10 +525,11 @@ def main():
         f"Retrieved {len(papers)} paper(s), {len(not_found)} not found, {len(failed)} failed."
     )
 
-    # Phase 3: Process each fetched paper (DB upsert + Obsidian note)
+    # Phase 3: Build arXiv index and process each fetched paper (DB upsert + Obsidian note)
+    arxiv_index = _build_arxiv_index(PAPERS_DIR)
     for paper in papers:
         try:
-            _process_paper(paper, args.download_pdf)
+            _process_paper(paper, args.download_pdf, arxiv_index=arxiv_index)
         except Exception as e:
             LOGGER.error(f"Failed to process {paper['title']!r}: {e}")
 
