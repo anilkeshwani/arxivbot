@@ -4,10 +4,7 @@ import logging
 import re
 
 
-# TODO is this best practice?
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
-LOGGER.addHandler(logging.StreamHandler())
 
 
 def inflect_day(day: int):

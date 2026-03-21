@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +32,13 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 """
 
 
+def _strip_arxiv_version(arxiv_id: str | None) -> str | None:
+    """Normalize arXiv ID by stripping the version suffix (e.g., '2109.00301v3' -> '2109.00301')."""
+    if not arxiv_id:
+        return arxiv_id
+    return re.sub(r"v\d+$", "", arxiv_id)
+
+
 def _get_connection(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -43,6 +51,17 @@ def init_db(db_path: Path) -> None:
     """Create the papers table and indexes if they don't exist."""
     with _get_connection(db_path) as conn:
         conn.executescript(_SCHEMA)
+        # Normalize any versioned arXiv IDs (e.g., "2109.00301v3" -> "2109.00301")
+        rows = conn.execute(
+            "SELECT paper_id, arxiv_id FROM papers WHERE arxiv_id IS NOT NULL AND arxiv_id LIKE '%v%'"
+        ).fetchall()
+        for row in rows:
+            clean = _strip_arxiv_version(row["arxiv_id"])
+            if clean != row["arxiv_id"]:
+                conn.execute(
+                    "UPDATE papers SET arxiv_id = ? WHERE paper_id = ?",
+                    (clean, row["paper_id"]),
+                )
 
 
 def paper_exists(
@@ -59,7 +78,8 @@ def paper_exists(
             if row:
                 return True
         if arxiv_id:
-            row = conn.execute("SELECT 1 FROM papers WHERE arxiv_id = ?", (arxiv_id,)).fetchone()
+            clean_id = _strip_arxiv_version(arxiv_id)
+            row = conn.execute("SELECT 1 FROM papers WHERE arxiv_id = ?", (clean_id,)).fetchone()
             if row:
                 return True
         if doi:
@@ -89,6 +109,7 @@ def upsert_paper(
     open_access_pdf_url: str | None,
 ) -> None:
     """Insert or update a paper record, preserving the original added_at timestamp."""
+    arxiv_id = _strip_arxiv_version(arxiv_id)
     now = datetime.now(timezone.utc).isoformat()
     with _get_connection(db_path) as conn:
         conn.execute(
