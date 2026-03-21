@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -19,19 +19,10 @@ repos:
           - --binary-next-line
           - --case-indent
           - --space-redirects
-  # black formatting
-  - repo: https://github.com/psf/black
-    rev: 23.9.1
+  # ruff linting and formatting (replaces black, isort, flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.3
     hooks:
-      - id: black
-        args:
-          - --config=pyproject.toml
-  # sort imports
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        name: isort
-        args:
-          # passing settings here did not work, so passed with pyproject.toml file
-          - --settings-path=pyproject.toml
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

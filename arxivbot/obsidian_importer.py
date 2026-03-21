@@ -124,12 +124,12 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     # Split on the YAML front-matter delimiters (first two '---' lines)
     parts = text.split("---", 2)
     if len(parts) < 3:
-        LOGGER.warning("Could not parse frontmatter in %s — skipping update", note_path)
+        LOGGER.warning(f"Could not parse frontmatter in {note_path} — skipping update")
         return
 
     existing_fm = yaml.safe_load(parts[1])
     if not isinstance(existing_fm, dict):
-        LOGGER.warning("Frontmatter is not a dict in %s — skipping update", note_path)
+        LOGGER.warning(f"Frontmatter is not a dict in {note_path} — skipping update")
         return
 
     body = parts[2]  # everything after the closing '---'
@@ -137,7 +137,7 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     # Determine which keys are actually new
     keys_to_add = {k: v for k, v in new_fields.items() if k not in existing_fm}
     if not keys_to_add:
-        LOGGER.info("No new frontmatter keys to add for %s", note_path.name)
+        LOGGER.info(f"No new frontmatter keys to add for {note_path.name}")
         return
 
     # Build merged dict in canonical order
@@ -154,7 +154,7 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
 
     new_frontmatter = yaml.dump(merged, sort_keys=False, allow_unicode=True)
     note_path.write_text("---\n" + new_frontmatter + "---" + body, encoding="utf-8")
-    LOGGER.info("Updated frontmatter (%d new keys) for %s", len(keys_to_add), note_path.name)
+    LOGGER.info(f"Updated frontmatter ({len(keys_to_add)} new keys) for {note_path.name}")
 
 
 def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
@@ -190,7 +190,7 @@ def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
         m = re.search(r"(\d{4}\.\d{4,5})", link)
         if m:
             index.setdefault(m.group(1), md)
-    LOGGER.info("Built arXiv index: %d papers with arXiv IDs", len(index))
+    LOGGER.info(f"Built arXiv index: {len(index)} papers with arXiv IDs")
     return index
 
 
@@ -279,8 +279,8 @@ def write_obsidian_paper(
 
     if existing_path and existing_path != obsidian_paper_path:
         LOGGER.info("Paper exists under different name, updating frontmatter:")
-        LOGGER.info("  existing: %s", existing_path.name)
-        LOGGER.info("  S2 title: %s", filename)
+        LOGGER.info(f"  existing: {existing_path.name}")
+        LOGGER.info(f"  S2 title: {filename}")
         _update_existing_note(existing_path, s2_fields)
     else:
         try:
@@ -297,7 +297,7 @@ def write_obsidian_paper(
     if download_pdf and pdf_url:
         parsed_url = urlparse(pdf_url)
         if parsed_url.scheme not in ("http", "https"):
-            LOGGER.warning("Skipping PDF download: unexpected URL scheme %r", pdf_url)
+            LOGGER.warning(f"Skipping PDF download: unexpected URL scheme {pdf_url!r}")
         else:
             pdf_filename = f"{filename}.pdf"
             pdf_path = obsidian_pdfs_dir / pdf_filename
@@ -311,7 +311,7 @@ def write_obsidian_paper(
                     pdf_path.write_bytes(response.content)
                     LOGGER.info(str(pdf_path))
                 except requests.RequestException as e:
-                    LOGGER.warning("PDF download failed for %r: %s", pdf_url, e)
+                    LOGGER.warning(f"PDF download failed for {pdf_url!r}: {e}")
 
     return obsidian_paper
 

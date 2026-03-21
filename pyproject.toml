@@ -6,27 +6,40 @@ build-backend = "setuptools.build_meta"
 name = "arxivbot"
 authors = [{ name = "Anil Keshwani", email = "anilkeshwani@hotmail.com" }]
 description = "A minimal paper clipper for Obsidian, powered by Semantic Scholar"
-license = { file = "LICENSE" }
 requires-python = ">=3.11"
-dynamic = ["dependencies", "version", "readme"]
+dynamic = ["version", "readme"]
+dependencies = [
+    "pathvalidate>=3.2.0",
+    "python-dotenv>=1.0.0",
+    "PyYAML>=6.0.1",
+    "Requests>=2.31.0",
+    "rich>=13.0.0",
+    "semanticscholar>=0.8.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["arxivbot*"]
 
 [tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
 readme = { file = ["README.md"] }
 
 [tool.setuptools_scm]
 
-[tool.black]
+[tool.ruff]
 line-length = 120
 
-[tool.isort]
-profile = "black"
-line_length = 120
-lines_after_imports = 2
-force_alphabetical_sort_within_sections = true
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+force-sort-within-sections = true
 
 [project.scripts]
 obsidian-import = "arxivbot.obsidian_importer:main"
