@@ -168,14 +168,16 @@ def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
     for md in papers_dir.glob("*.md"):
         try:
             text = md.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError) as exc:
+            LOGGER.warning(f"Skipping {md.name}: could not read file: {exc}")
             continue
         parts = text.split("---", 2)
         if len(parts) < 3:
             continue
         try:
             fm = yaml.safe_load(parts[1])
-        except yaml.YAMLError:
+        except yaml.YAMLError as exc:
+            LOGGER.warning(f"Skipping {md.name}: invalid YAML frontmatter: {exc}")
             continue
         if not isinstance(fm, dict):
             continue
