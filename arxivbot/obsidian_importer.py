@@ -454,6 +454,9 @@ def _paper_exists_locally(s2_id: str) -> bool:
         return paper_exists(DB_PATH, arxiv_id=s2_id.removeprefix("ARXIV:"))
     if s2_id.startswith("DOI:"):
         return paper_exists(DB_PATH, doi=s2_id.removeprefix("DOI:"))
+    if s2_id.startswith("CORPUSID:"):
+        LOGGER.debug(f"Cannot resolve CorpusID locally (DB does not store CorpusIDs): {s2_id}")
+        return False
     return paper_exists(DB_PATH, paper_id=s2_id)
 
 
