@@ -400,7 +400,7 @@ def fetch_papers_batch(
             except Exception as e:
                 paper_id = getattr(p, "paperId", "unknown")
                 LOGGER.error(f"Failed to normalize paper {paper_id}: {e}")
-        all_not_found.extend(not_found)
+        all_not_found.extend(nf.paperId if hasattr(nf, "paperId") else nf for nf in not_found)
 
     return all_papers, all_not_found, all_failed
 
