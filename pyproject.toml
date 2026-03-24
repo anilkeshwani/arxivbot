@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dynamic = ["version", "readme"]
 dependencies = [
     "pathvalidate>=3.2.0",
+    "PyMuPDF>=1.24.0",
     "python-dotenv>=1.0.0",
     "PyYAML>=6.0.1",
     "Requests>=2.31.0",
@@ -43,3 +44,4 @@ force-sort-within-sections = true
 
 [project.scripts]
 obsidian-import = "arxivbot.obsidian_importer:main"
+arxivbot-telegram = "arxivbot.telegram_bot:main"
