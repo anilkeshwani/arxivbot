@@ -4,15 +4,17 @@ A minimal paper clipper for Obsidian, powered by Semantic Scholar.
 
 ## Installation
 
-Using [uv](https://github.com/astral-sh/uv) (recommended):
+Install as a tool (recommended for general use):
+
+```bash
+uv tool install git+https://github.com/anilkeshwani/arxivbot
+```
+
+Or into a project environment:
 
 ```bash
 uv pip install .
-```
-
-Or with pip:
-
-```bash
+# or
 pip install .
 ```
 
@@ -20,7 +22,7 @@ pip install .
 
 ### API key
 
-Copy `credentials_template.env` to `credentials.env` in the project root and fill in your Semantic Scholar API key:
+Set `S2_API_KEY` in your environment, or copy `credentials_template.env` to `credentials.env` in the directory where you run `obsidian-import`:
 
 ```bash
 cp credentials_template.env credentials.env
@@ -39,9 +41,9 @@ All paths can be overridden via environment variables (defaults shown):
 | Variable | Default | Description |
 |---|---|---|
 | `OBSIDIAN_VAULT_DIR` | `~/Desktop/journal/` | Root of your Obsidian vault |
-| `OBSIDIAN_PAPERS_DIR` | `$VAULT/Papers` | Directory for paper notes |
-| `OBSIDIAN_PDFS_DIR` | `$VAULT/PDFs` | Directory for downloaded PDFs |
-| `OBSIDIAN_DB_PATH` | `$VAULT/.papers.db` | SQLite database path |
+| `OBSIDIAN_PAPERS_DIR` | `$OBSIDIAN_VAULT_DIR/Papers` | Directory for paper notes |
+| `OBSIDIAN_PDFS_DIR` | `$OBSIDIAN_VAULT_DIR/PDFs` | Directory for downloaded PDFs |
+| `OBSIDIAN_DB_PATH` | `$OBSIDIAN_VAULT_DIR/.papers.db` | SQLite database path |
 | `S2_API_KEY` | _(none)_ | Semantic Scholar API key |
 
 ## Usage
@@ -97,6 +99,7 @@ obsidian-import 2408.16532 --force
 │   ├── additional_features.md
 │   ├── ai_summary_generation.md
 │   ├── feature_requests.md
+│   ├── resources.md
 │   └── s2_api_migration_reference.md
 ├── pyproject.toml
 └── uv.lock
