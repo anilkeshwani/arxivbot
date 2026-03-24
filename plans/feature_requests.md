@@ -1,6 +1,13 @@
 # Feature Requests
 
-Open feature requests for arxivbot.
+Feature requests for arxivbot. Completed items are retained for historical reference.
+
+---
+
+## Completed
+
+- [x] Write abstract to entries as text
+- [x] Add check for duplicate entries before adding to database (i.e. if arXiv ID is already in database)
 
 ---
 
