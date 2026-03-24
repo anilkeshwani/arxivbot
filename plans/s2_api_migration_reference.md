@@ -1,5 +1,7 @@
 # Semantic Scholar API Migration Reference
 
+> **Status: Complete.** The migration from the `arxiv` Python package to the Semantic Scholar API is done. This document is retained as a reference.
+
 Reference document for migrating arxivbot from the `arxiv` Python package to the Semantic Scholar (S2) Academic Graph API.
 
 Researched: 2026-03-17
