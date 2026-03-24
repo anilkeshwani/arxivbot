@@ -257,6 +257,28 @@ Removed from journal repo:
 | git commit + push | ~5s |
 | **Total** | **~1-2 minutes** |
 
+## Remaining Implementation Work
+
+None — all code is written and installed. The bot is ready to run once credentials are configured.
+
+Future refinements (not blockers):
+- The `ANALYSIS_PROMPT` constant in `telegram_bot.py` can be tuned after testing real output
+- Consider adding `/status` command to check bot health
+- Consider adding a `/recent` command to list recently imported papers
+
+## What You Need To Do
+
+1. **Write credentials** to `~/.config/arxivbot/credentials.env`:
+   ```
+   ARXIVBOT_TELEGRAM_BOT_TOKEN=<your token from BotFather>
+   ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS=<your chat ID>
+   ```
+   Then: `chmod 600 ~/.config/arxivbot/credentials.env`
+
+2. **Test manually**: run `arxivbot-telegram` in a terminal and send a paper link to your bot
+
+3. **After successful test**: I will create the launchd plist and load it so the bot runs persistently
+
 ## Verification
 
 1. Run `arxivbot-telegram` manually in a terminal
