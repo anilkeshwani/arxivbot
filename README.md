@@ -122,4 +122,4 @@ ruff format .
 
 ## Resources
 
-- [danielnsilva/semanticscholar](https://github.com/danielnsilva/semanticscholar) — Python client for the S2 API
+See [`plans/resources.md`](plans/resources.md) for a full list of references and related projects.
