@@ -18,7 +18,7 @@ from rich.logging import RichHandler
 from semanticscholar import SemanticScholar
 
 from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
-from arxivbot.database import init_db, paper_exists, upsert_paper
+from arxivbot.database import get_paper_title, init_db, paper_exists, upsert_paper
 from arxivbot.utils import inflect_day, parse_paper_id
 
 
@@ -460,6 +460,30 @@ def _paper_exists_locally(s2_id: str) -> bool:
     return paper_exists(DB_PATH, paper_id=s2_id)
 
 
+def _get_title_for_s2_id(s2_id: str) -> str | None:
+    """Look up the title for a paper in the local DB given its S2 query ID."""
+    if s2_id.startswith("ARXIV:"):
+        return get_paper_title(DB_PATH, arxiv_id=s2_id.removeprefix("ARXIV:"))
+    if s2_id.startswith("DOI:"):
+        return get_paper_title(DB_PATH, doi=s2_id.removeprefix("DOI:"))
+    if s2_id.startswith("CORPUSID:"):
+        return None
+    return get_paper_title(DB_PATH, paper_id=s2_id)
+
+
+def _find_raw_input(paper: dict, raw_by_s2_id: dict[str, str]) -> str | None:
+    """Find the raw user input that corresponds to a fetched paper."""
+    if paper.get("arxiv_id"):
+        raw = raw_by_s2_id.get(f"ARXIV:{paper['arxiv_id']}")
+        if raw:
+            return raw
+    if paper.get("doi"):
+        raw = raw_by_s2_id.get(f"DOI:{paper['doi']}")
+        if raw:
+            return raw
+    return raw_by_s2_id.get(paper.get("paper_id", ""))
+
+
 def main():
     parser = ArgumentParser(description="Import papers to Obsidian vault via Semantic Scholar API")
     parser.add_argument("id_list", type=str, nargs="+", help="Paper identifiers (arXiv IDs/URLs, S2 IDs/URLs, DOIs)")
@@ -488,7 +512,7 @@ def main():
     # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
     s2_ids: list[str] = []
     raw_by_s2_id: dict[str, str] = {}  # s2_id -> first raw input (for error messages)
-    skipped_local: list[str] = []
+    skipped_local: list[tuple[str, str]] = []  # (raw_id, s2_id)
     for raw_id in args.id_list:
         try:
             s2_id = parse_paper_id(raw_id)
@@ -499,13 +523,15 @@ def main():
             LOGGER.warning(f"Skipping {raw_id!r}: resolves to same ID as {raw_by_s2_id[s2_id]!r}")
             continue
         if not args.force and _paper_exists_locally(s2_id):
-            skipped_local.append(raw_id)
+            skipped_local.append((raw_id, s2_id))
             continue
         s2_ids.append(s2_id)
         raw_by_s2_id[s2_id] = raw_id
 
-    for raw_id in skipped_local:
-        LOGGER.info(f"Already in local database, skipping: {raw_id!r} (use --force to re-fetch)")
+    for raw_id, s2_id in skipped_local:
+        title = _get_title_for_s2_id(s2_id)
+        title_suffix = f" — \"{title}\"" if title else ""
+        LOGGER.info(f"Already in local database, skipping: {raw_id!r}{title_suffix} (use --force to re-fetch)")
 
     if not s2_ids:
         if skipped_local:
@@ -533,10 +559,13 @@ def main():
     # Phase 3: Build arXiv index and process each fetched paper (DB upsert + Obsidian note)
     arxiv_index = _build_arxiv_index(PAPERS_DIR)
     for paper in papers:
+        raw_input = _find_raw_input(paper, raw_by_s2_id)
+        input_prefix = f"{raw_input!r} — " if raw_input else ""
         try:
+            LOGGER.info(f"Importing: {input_prefix}\"{paper['title']}\"")
             _process_paper(paper, args.download_pdf, arxiv_index=arxiv_index)
         except Exception as e:
-            LOGGER.error(f"Failed to process {paper['title']!r}: {e}")
+            LOGGER.error(f"Failed to process {input_prefix}\"{paper['title']}\": {e}")
 
 
 if __name__ == "__main__":

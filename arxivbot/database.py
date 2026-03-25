@@ -89,6 +89,31 @@ def paper_exists(
     return False
 
 
+def get_paper_title(
+    db_path: Path,
+    *,
+    paper_id: str | None = None,
+    arxiv_id: str | None = None,
+    doi: str | None = None,
+) -> str | None:
+    """Look up a paper's title by S2 paper_id, arXiv ID, or DOI. Returns None if not found."""
+    with _get_connection(db_path) as conn:
+        if paper_id:
+            row = conn.execute("SELECT title FROM papers WHERE paper_id = ?", (paper_id,)).fetchone()
+            if row:
+                return row["title"]
+        if arxiv_id:
+            clean_id = _strip_arxiv_version(arxiv_id)
+            row = conn.execute("SELECT title FROM papers WHERE arxiv_id = ?", (clean_id,)).fetchone()
+            if row:
+                return row["title"]
+        if doi:
+            row = conn.execute("SELECT title FROM papers WHERE doi = ?", (doi,)).fetchone()
+            if row:
+                return row["title"]
+    return None
+
+
 def upsert_paper(
     db_path: Path,
     *,
