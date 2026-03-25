@@ -101,7 +101,7 @@ def collect_paper_yaml(
         "demo": notion_entry["Demo"] if notion_entry is not None else "",
         "tags": notion_entry["Tags"] if notion_entry is not None else DEFAULT_PAPER_TAGS,
     }
-    frontmatter = yaml.dump(frontmatter_fields, sort_keys=False, allow_unicode=True)
+    frontmatter = yaml.dump(frontmatter_fields, sort_keys=False, allow_unicode=True, width=float("inf"))
     return "---" + "\n" + frontmatter + "---" + "\n"
 
 
@@ -152,7 +152,7 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
         if key not in merged:
             merged[key] = existing_fm[key]
 
-    new_frontmatter = yaml.dump(merged, sort_keys=False, allow_unicode=True)
+    new_frontmatter = yaml.dump(merged, sort_keys=False, allow_unicode=True, width=float("inf"))
     note_path.write_text("---\n" + new_frontmatter + "---" + body, encoding="utf-8")
     LOGGER.info(f"Updated frontmatter ({len(keys_to_add)} new keys) for {note_path.name}")
 
