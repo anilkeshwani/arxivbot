@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
 from datetime import date
 from pathlib import Path
@@ -405,6 +406,92 @@ def fetch_papers_batch(
     return all_papers, all_not_found, all_failed
 
 
+_ARXIV_ATOM_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "arxiv": "http://arxiv.org/schemas/atom",
+}
+
+
+def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
+    """Fetch paper metadata directly from the arXiv Atom API.
+
+    Fallback for papers not found on Semantic Scholar. Returns normalized
+    paper dicts compatible with _process_paper(). Uses a synthetic
+    paper_id of the form "arxiv:{id}" since no S2 SHA is available.
+    """
+    if not arxiv_ids:
+        return []
+
+    id_list = ",".join(arxiv_ids)
+    url = f"https://export.arxiv.org/api/query?id_list={id_list}&max_results={len(arxiv_ids)}"
+
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        LOGGER.error(f"arXiv API request failed: {e}")
+        return []
+
+    root = ET.fromstring(response.text)
+    ns = _ARXIV_ATOM_NS
+    papers: list[dict] = []
+
+    for entry in root.findall("atom:entry", ns):
+        title = " ".join(entry.findtext("atom:title", "", ns).split())
+        if not title or title.lower() == "error":
+            continue
+
+        authors = [
+            name.strip()
+            for author in entry.findall("atom:author", ns)
+            if (name := author.findtext("atom:name", "", ns).strip())
+        ]
+
+        abstract = " ".join(entry.findtext("atom:summary", "", ns).split())
+
+        # Extract bare arXiv ID from entry <id> (e.g. "http://arxiv.org/abs/1904.05862v4")
+        entry_url = entry.findtext("atom:id", "", ns)
+        match = re.search(r"(\d{4}\.\d{4,5})", entry_url)
+        arxiv_id = match.group(1) if match else ""
+
+        # Publication date
+        pub_str = entry.findtext("atom:published", "", ns)
+        pub_date = pub_str[:10] if pub_str and len(pub_str) >= 10 else None
+        year = int(pub_date[:4]) if pub_date else None
+
+        # Optional DOI from arXiv metadata
+        doi = entry.findtext("arxiv:doi", None, ns)
+
+        # arXiv categories
+        categories = [
+            cat.get("term", "")
+            for cat in entry.findall("atom:category", ns)
+            if cat.get("term")
+        ]
+
+        papers.append({
+            "paper_id": f"arxiv:{arxiv_id}",
+            "title": title,
+            "authors": authors,
+            "abstract": abstract,
+            "publication_date": pub_date,
+            "year": year,
+            "arxiv_id": arxiv_id,
+            "doi": doi,
+            "venue": "",
+            "tldr": "",
+            "s2_url": "",
+            "fields_of_study": categories,
+            "citation_count": 0,
+            "influential_citation_count": 0,
+            "link": f"https://arxiv.org/abs/{arxiv_id}",
+            "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
+            "open_access_pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
+        })
+
+    return papers
+
+
 def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path] | None = None) -> None:
     """Upsert a normalized paper dict into the DB and write an Obsidian note."""
     upsert_paper(
@@ -544,17 +631,32 @@ def main():
     LOGGER.info(f"Fetching {len(s2_ids)} paper(s) from Semantic Scholar...")
     papers, not_found, failed = fetch_papers_batch(sch, s2_ids)
 
-    for nf_id in not_found:
-        raw = raw_by_s2_id.get(nf_id, nf_id)
-        LOGGER.warning(f"Paper not found: {raw!r} (resolved to {nf_id!r})")
-
-    for fail_id in failed:
-        raw = raw_by_s2_id.get(fail_id, fail_id)
-        LOGGER.error(f"Failed to fetch (API error): {raw!r} (resolved to {fail_id!r})")
-
     LOGGER.info(
         f"Retrieved {len(papers)} paper(s), {len(not_found)} not found, {len(failed)} failed."
     )
+
+    # Phase 2b: arXiv API fallback for papers S2 couldn't find
+    s2_missed_ids = set(not_found) | set(failed)
+    arxiv_fallback_ids = [
+        s2_id.removeprefix("ARXIV:")
+        for s2_id in s2_missed_ids
+        if s2_id.startswith("ARXIV:")
+    ]
+    if arxiv_fallback_ids:
+        LOGGER.info(f"Falling back to arXiv API for {len(arxiv_fallback_ids)} paper(s)...")
+        arxiv_papers = fetch_arxiv_papers(arxiv_fallback_ids)
+        LOGGER.info(f"Retrieved {len(arxiv_papers)} paper(s) from arXiv.")
+        papers.extend(arxiv_papers)
+
+    # Log papers that could not be retrieved from either source
+    arxiv_retrieved = {p["arxiv_id"] for p in papers if p.get("arxiv_id")}
+    for s2_id in s2_missed_ids:
+        raw = raw_by_s2_id.get(s2_id, s2_id)
+        if s2_id.startswith("ARXIV:"):
+            bare_id = s2_id.removeprefix("ARXIV:")
+            if bare_id in arxiv_retrieved:
+                continue  # successfully retrieved via arXiv fallback
+        LOGGER.warning(f"Paper not found on S2 or arXiv: {raw!r} (resolved to {s2_id!r})")
 
     # Phase 3: Build arXiv index and process each fetched paper (DB upsert + Obsidian note)
     arxiv_index = _build_arxiv_index(PAPERS_DIR)
