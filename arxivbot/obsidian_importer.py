@@ -92,6 +92,7 @@ def collect_paper_yaml(
         "doi": doi,
         "venue": venue,
         "tldr": tldr,
+        "summary": "",
         "arxiv_id": arxiv_id,
         "s2_paper_id": s2_paper_id,
         "s2_url": s2_url,
@@ -108,10 +109,32 @@ def collect_paper_yaml(
 
 # Target frontmatter key order for consistent notes
 _FRONTMATTER_KEY_ORDER = [
-    "title", "authors", "published", "link", "doi", "venue", "tldr",
+    "title", "authors", "published", "link", "doi", "venue", "tldr", "summary",
     "arxiv_id", "s2_paper_id", "s2_url", "pdf_url", "citation_count",
     "code", "page", "demo", "tags",
 ]
+
+# A frontmatter delimiter line: exactly '---', optionally followed by trailing
+# whitespace, matched as a whole line (never a '---' substring embedded in a
+# value or in the body — e.g. an em-dash rendered as '---' in an S2 tldr).
+_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*\r?$", re.MULTILINE)
+
+
+def _split_frontmatter(text: str) -> tuple[str, str] | None:
+    """Split note text into (frontmatter_text, body) on line-anchored '---' delimiters.
+
+    Requires the text to begin with a line that is exactly '---'. The
+    frontmatter ends at the next line that is exactly '---' (trailing
+    whitespace allowed). Returns None if the text does not start with such a
+    delimiter line, or if no closing delimiter line follows it.
+    """
+    open_match = _FRONTMATTER_DELIMITER_RE.match(text)
+    if open_match is None:
+        return None
+    close_match = _FRONTMATTER_DELIMITER_RE.search(text, open_match.end())
+    if close_match is None:
+        return None
+    return text[open_match.end() : close_match.start()], text[close_match.end() :]
 
 
 def _update_existing_note(note_path: Path, new_fields: dict) -> None:
@@ -122,18 +145,16 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     """
     text = note_path.read_text(encoding="utf-8")
 
-    # Split on the YAML front-matter delimiters (first two '---' lines)
-    parts = text.split("---", 2)
-    if len(parts) < 3:
+    split = _split_frontmatter(text)
+    if split is None:
         LOGGER.warning(f"Could not parse frontmatter in {note_path} — skipping update")
         return
+    frontmatter_text, body = split
 
-    existing_fm = yaml.safe_load(parts[1])
+    existing_fm = yaml.safe_load(frontmatter_text)
     if not isinstance(existing_fm, dict):
         LOGGER.warning(f"Frontmatter is not a dict in {note_path} — skipping update")
         return
-
-    body = parts[2]  # everything after the closing '---'
 
     # Determine which keys are actually new
     keys_to_add = {k: v for k, v in new_fields.items() if k not in existing_fm}
@@ -172,11 +193,12 @@ def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
         except (OSError, UnicodeDecodeError) as exc:
             LOGGER.warning(f"Skipping {md.name}: could not read file: {exc}")
             continue
-        parts = text.split("---", 2)
-        if len(parts) < 3:
+        split = _split_frontmatter(text)
+        if split is None:
             continue
+        frontmatter_text, _body = split
         try:
-            fm = yaml.safe_load(parts[1])
+            fm = yaml.safe_load(frontmatter_text)
         except yaml.YAMLError as exc:
             LOGGER.warning(f"Skipping {md.name}: invalid YAML frontmatter: {exc}")
             continue
@@ -267,6 +289,7 @@ def write_obsidian_paper(
         "doi": doi,
         "venue": venue,
         "tldr": tldr,
+        "summary": "",
         "arxiv_id": arxiv_id,
         "s2_paper_id": s2_paper_id,
         "s2_url": s2_url,
