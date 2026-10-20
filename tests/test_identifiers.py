@@ -124,15 +124,38 @@ def test_extract_doi(text, expected):
     assert extract_doi(text) == expected
 
 
-def test_sici_dois_are_cut_at_angle_brackets():
-    # Documented limitation: DOI_RE stops at "<" so DOIs come out of HTML cleanly
-    assert extract_doi("10.1002/(SICI)1097-4636(199706)35:4<500::AID-JBM8>3.0.CO;2-P") != (
-        "10.1002/(SICI)1097-4636(199706)35:4<500::AID-JBM8>3.0.CO;2-P"
-    )
+def test_extract_doi_keeps_sici_dois_whole():
+    sici = "10.1002/(SICI)1097-4636(199706)35:4<500::AID-JBM8>3.0.CO;2-P"
+    assert extract_doi(f"see {sici} and") == sici
+    assert extract_doi("<https://doi.org/10.1145/abc>") == "10.1145/abc"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("10.1234/example(1)", "10.1234/example(1)"),
+        ("(see 10.1234/example(1))", "10.1234/example(1)"),
+        ("10.1234/abc).", "10.1234/abc"),
+    ],
+)
+def test_clean_doi_strips_only_unbalanced_closing_brackets(raw, expected):
+    assert extract_doi(raw) == expected
+    assert normalize_doi(expected) == expected.lower()
+
+
+def test_parse_paper_id_drops_doi_url_query():
+    assert parse_paper_id("https://doi.org/10.48550/arXiv.2408.16532?utm_source=share") == "ARXIV:2408.16532"
+    assert parse_paper_id("https://doi.org/10.1145/ABC#refs") == "DOI:10.1145/ABC"
 
 
 def test_dedup_keys_maps_arxiv_dois_to_arxiv_key():
-    assert dedup_keys(doi="10.48550/arXiv.2408.16532") == ["arxiv:2408.16532", "doi:10.48550/arxiv.2408.16532"]
+    assert dedup_keys(doi="10.48550/arXiv.2408.16532") == ["arxiv:2408.16532"]
+
+
+def test_arxiv_doi_does_not_block_title_match_with_published_doi():
+    preprint = dedup_keys(doi="10.48550/arXiv.2408.16532", title="Codec Paper")
+    published = dedup_keys(doi="10.1109/X.1", title="Codec paper.")
+    assert same_paper(preprint, published)
 
 
 def test_same_paper_prefers_strong_keys_over_titles():

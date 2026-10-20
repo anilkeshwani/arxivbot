@@ -28,13 +28,14 @@ __all__ = [
 ARXIV_ID_RE = re.compile(r"(?<!\d)(?<!\d\.)(\d{4}\.\d{4,5})(v\d+)?(?!\d)")
 ARXIV_URL_RE = re.compile(r"(?:https?://)?(?:www\.|export\.)?arxiv\.org/(?:abs|pdf|html)/(\d{4}\.\d{4,5}(?:v\d+)?)")
 S2_URL_RE = re.compile(r"semanticscholar\.org/paper/(?:[^/\s]+/)?([0-9a-f]{40})", re.IGNORECASE)
-# Stops at quotes and angle brackets so DOIs come out of HTML cleanly. Legacy
-# SICI DOIs, which contain "<" and ">", are therefore not supported.
-DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>]+)")
+# Stops at quotes so DOIs come out of HTML attributes cleanly. Angle brackets
+# are allowed because legacy SICI DOIs contain them; clean_doi drops unbalanced ones.
+DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s\"]+)")
 
 _DOI_PREFIX_RE = re.compile(r"^(?:doi:\s*|(?:https?://)?(?:www\.|dx\.)?doi\.org/)", re.IGNORECASE)
 _ARXIV_DOI_RE = re.compile(r"^10\.48550/arxiv\.(\d{4}\.\d{4,5})(?:v\d+)?$", re.IGNORECASE)
 _DOI_TRAILING_PUNCT = ".,;:)]}>'\""
+_DOI_BRACKET_PAIRS = {")": "(", "]": "[", "}": "{", ">": "<"}
 _STRONG_KEY_NAMESPACES = ("s2", "arxiv", "doi")
 
 
@@ -50,8 +51,17 @@ def extract_arxiv_id(text: str) -> str | None:
 
 
 def clean_doi(doi: str) -> str:
-    """Strip a 'doi:' or doi.org prefix and trailing punctuation, keeping the original case."""
-    return _DOI_PREFIX_RE.sub("", doi.strip()).strip().rstrip(_DOI_TRAILING_PUNCT)
+    """Strip a 'doi:' or doi.org prefix and trailing punctuation, keeping the original case.
+
+    A closing bracket is kept when it balances an opening one, as in 10.1234/example(1).
+    """
+    doi = _DOI_PREFIX_RE.sub("", doi.strip()).strip()
+    while doi and doi[-1] in _DOI_TRAILING_PUNCT:
+        opener = _DOI_BRACKET_PAIRS.get(doi[-1])
+        if opener and doi.count(opener) >= doi.count(doi[-1]):
+            break
+        doi = doi[:-1]
+    return doi
 
 
 def normalize_doi(doi: str) -> str:
@@ -94,7 +104,7 @@ def parse_paper_id(input_str: str) -> str:
 
     # DOIs before arXiv: a DOI can contain an arXiv-like substring
     if _DOI_PREFIX_RE.match(input_str) or input_str.startswith("10."):
-        doi = clean_doi(input_str)
+        doi = extract_doi(input_str) or clean_doi(input_str)
         arxiv_doi_match = _ARXIV_DOI_RE.match(doi)
         if arxiv_doi_match:
             return f"ARXIV:{arxiv_doi_match.group(1)}"
@@ -126,8 +136,11 @@ def dedup_keys(
     keys = []
     if s2_id:
         keys.append(f"s2:{s2_id.lower()}")
+    # An arXiv DOI is the arXiv ID in another form. Keyed as a DOI, it would
+    # conflict with the published version's DOI and block the title match.
     if doi and (arxiv_doi_match := _ARXIV_DOI_RE.match(clean_doi(doi))):
         arxiv_id = arxiv_id or arxiv_doi_match.group(1)
+        doi = None
     if arxiv_id:
         keys.append(f"arxiv:{strip_arxiv_version(arxiv_id)}")
     if doi:
