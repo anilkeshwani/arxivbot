@@ -25,6 +25,7 @@ def test_drop_duplicate_papers_keeps_first_of_shared_keys():
         ("2408.16532 and 2501.00001v1", ["2408.16532", "2501.00001v1"]),
         ("arXiv:2408.16532", ["2408.16532"]),
         ('<a href="https://doi.org/10.1145/abc">paper</a>', ["10.1145/abc"]),
+        ("https://doi.org/10.48550/arXiv.2408.16532?utm_source=share", ["10.48550/arXiv.2408.16532"]),
         ("no ids here", []),
     ],
 )

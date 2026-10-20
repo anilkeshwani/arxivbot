@@ -16,7 +16,7 @@ import requests
 from dotenv import load_dotenv
 
 from arxivbot.constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR, PDFS_DIR
-from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, parse_paper_id
+from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, S2_URL_RE, extract_dois, parse_paper_id
 
 
 LOGGER = logging.getLogger(__name__)
@@ -183,7 +183,7 @@ def send_photo(token: str, chat_id: int, photo_path: Path, caption: str = "") ->
 
 def extract_paper_ids(text: str) -> list[str]:
     """Extract paper identifiers from message text. Returns raw IDs (not S2-formatted), one per paper."""
-    ids = [m.group(1) for regex in (ARXIV_URL_RE, S2_URL_RE, DOI_RE) for m in regex.finditer(text)]
+    ids = [m.group(1) for regex in (ARXIV_URL_RE, S2_URL_RE) for m in regex.finditer(text)] + extract_dois(text)
     # Only try bare arXiv IDs if no URLs matched (avoids double-matching)
     if not ids:
         ids = [m.group(0) for m in ARXIV_ID_RE.finditer(text)]

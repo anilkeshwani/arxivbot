@@ -11,10 +11,15 @@ import unicodedata
 
 
 __all__ = [
+    "ARXIV_ID_RE",
+    "ARXIV_URL_RE",
+    "DOI_RE",
+    "S2_URL_RE",
     "clean_doi",
     "dedup_keys",
     "extract_arxiv_id",
     "extract_doi",
+    "extract_dois",
     "normalize_doi",
     "normalize_title",
     "parse_paper_id",
@@ -69,10 +74,24 @@ def normalize_doi(doi: str) -> str:
     return clean_doi(doi).lower()
 
 
+def extract_dois(text: str) -> list[str]:
+    """Return every DOI in `text`, cleaned.
+
+    A DOI inside a URL path (publisher or doi.org link) loses the URL's query and
+    fragment. Elsewhere "?" and "#" are kept, as legacy SICI DOIs can end in "#".
+    """
+    dois = []
+    for match in DOI_RE.finditer(text):
+        doi = match.group(1)
+        if match.start() > 0 and text[match.start() - 1] == "/":
+            doi = re.split(r"[?#]", doi)[0]
+        dois.append(clean_doi(doi))
+    return dois
+
+
 def extract_doi(text: str) -> str | None:
-    """Return the first DOI in `text` (e.g. a publisher URL), cleaned, without any URL query or fragment."""
-    match = DOI_RE.search(text)
-    return clean_doi(re.split(r"[?#]", match.group(1))[0]) if match else None
+    """Return the first DOI in `text`, cleaned as extract_dois does, or None."""
+    return next(iter(extract_dois(text)), None)
 
 
 def normalize_title(title: str) -> str:

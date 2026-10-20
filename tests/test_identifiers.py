@@ -167,3 +167,10 @@ def test_same_paper_prefers_strong_keys_over_titles():
         dedup_keys(s2_id="a" * 40, title="Introduction"), dedup_keys(s2_id="b" * 40, title="Introduction")
     )
     assert not same_paper(dedup_keys(title="One"), dedup_keys(title="Two"))
+
+
+def test_parse_paper_id_keeps_hash_in_sici_doi():
+    sici = "10.1002/(SICI)1521-3951(199911)216:1<135::AID-PSSB135>3.0.CO;2-#"
+    assert parse_paper_id(f"DOI:{sici}") == f"DOI:{sici}"
+    assert extract_doi(f"cited as {sici}") == sici
+    assert extract_doi("https://doi.org/10.1145/abc#refs") == "10.1145/abc"
