@@ -15,7 +15,6 @@ dependencies = [
     "PyYAML>=6.0.1",
     "Requests>=2.31.0",
     "rich>=13.0.0",
-    "semanticscholar>=0.8.0",
 ]
 
 [dependency-groups]
