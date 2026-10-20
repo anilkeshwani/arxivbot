@@ -95,6 +95,7 @@ obsidian-import 2408.16532 --force
 │   ├── find_arxiv_links.py
 │   ├── identifiers.py
 │   ├── obsidian_importer.py
+│   ├── s2_api.py
 │   ├── telegram_bot.py
 │   └── utils.py
 ├── credentials_template.env

@@ -18,12 +18,24 @@ _ARXIV_ATOM_NS = {
 }
 
 
-def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
-    """Fetch paper metadata directly from the arXiv Atom API.
+def arxiv_abs_url(arxiv_id: str) -> str:
+    return f"https://arxiv.org/abs/{arxiv_id}"
 
-    Fallback for papers not found on Semantic Scholar. Returns normalized
-    paper dicts compatible with _process_paper(). Uses a synthetic
-    paper_id of the form "arxiv:{id}" since no S2 SHA is available.
+
+def arxiv_pdf_url(arxiv_id: str) -> str:
+    return f"https://arxiv.org/pdf/{arxiv_id}"
+
+
+def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
+    """Fetch paper metadata directly from the arXiv Atom API, for papers Semantic Scholar does not have.
+
+    Returns one dict per paper arXiv knows, with the keys paper_id, title, authors,
+    abstract, publication_date, year, arxiv_id, doi, venue, tldr, s2_url,
+    fields_of_study, citation_count, influential_citation_count, link, pdf_url and
+    open_access_pdf_url. paper_id is the synthetic "arxiv:{id}", as there is no S2 SHA.
+    IDs arXiv does not know are left out. Raises requests.RequestException if the
+    request fails and ValueError if the response is not Atom XML, so callers can
+    tell a failure from an empty result.
     """
     if not arxiv_ids:
         return []
@@ -31,14 +43,12 @@ def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
     id_list = ",".join(arxiv_ids)
     url = f"https://export.arxiv.org/api/query?id_list={id_list}&max_results={len(arxiv_ids)}"
 
+    response = requests.get(url, timeout=(5, 20))
+    response.raise_for_status()
     try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        LOGGER.error(f"arXiv API request failed: {e}")
-        return []
-
-    root = ET.fromstring(response.text)
+        root = ET.fromstring(response.text)
+    except ET.ParseError as e:
+        raise ValueError(f"arXiv API returned malformed XML: {e}") from e
     ns = _ARXIV_ATOM_NS
     papers: list[dict] = []
 
@@ -85,9 +95,9 @@ def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
                 "fields_of_study": categories,
                 "citation_count": 0,
                 "influential_citation_count": 0,
-                "link": f"https://arxiv.org/abs/{arxiv_id}",
-                "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
-                "open_access_pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
+                "link": arxiv_abs_url(arxiv_id),
+                "pdf_url": arxiv_pdf_url(arxiv_id),
+                "open_access_pdf_url": arxiv_pdf_url(arxiv_id),
             }
         )
 

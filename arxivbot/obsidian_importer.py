@@ -15,12 +15,12 @@ import yaml
 from dotenv import load_dotenv
 from pathvalidate import sanitize_filename
 from rich.logging import RichHandler
-from semanticscholar import SemanticScholar
 
-from arxivbot.arxiv_api import fetch_arxiv_papers
+from arxivbot.arxiv_api import arxiv_abs_url, arxiv_pdf_url, fetch_arxiv_papers
 from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
 from arxivbot.database import get_paper_title, init_db, upsert_paper
 from arxivbot.identifiers import dedup_keys, extract_arxiv_id, parse_paper_id, strip_arxiv_version
+from arxivbot.s2_api import fetch_s2_batch
 from arxivbot.utils import inflect_day
 
 
@@ -37,14 +37,14 @@ def _load_s2_api_key() -> str | None:
 def _get_arxiv_link(arxiv_id: str | None) -> str | None:
     """Construct arXiv abstract URL from arXiv ID."""
     if arxiv_id:
-        return f"https://arxiv.org/abs/{arxiv_id}"
+        return arxiv_abs_url(arxiv_id)
     return None
 
 
 def _get_pdf_url(arxiv_id: str | None, open_access_pdf: dict | None) -> str | None:
     """Best-effort PDF URL: prefer arXiv, then openAccessPdf."""
     if arxiv_id:
-        return f"https://arxiv.org/pdf/{arxiv_id}"
+        return arxiv_pdf_url(arxiv_id)
     if open_access_pdf and open_access_pdf.get("url"):
         return open_access_pdf["url"]
     return None
@@ -340,66 +340,37 @@ def write_obsidian_paper(
     return obsidian_paper
 
 
-def _normalize_paper(paper) -> dict:
-    """Normalize an S2 Paper object into a flat dict for downstream consumption."""
-    external_ids = paper.externalIds or {}
+def _normalize_paper(paper: dict) -> dict:
+    """Normalize an S2 paper JSON object into a flat dict for downstream consumption."""
+    external_ids = paper.get("externalIds") or {}
     arxiv_id = external_ids.get("ArXiv")
     doi = external_ids.get("DOI")
-
-    tldr_text = ""
-    if paper.tldr:
-        tldr_text = paper.tldr.get("text", "") if isinstance(paper.tldr, dict) else getattr(paper.tldr, "text", "")
-
-    open_access = None
-    if paper.openAccessPdf:
-        if isinstance(paper.openAccessPdf, dict):
-            open_access = paper.openAccessPdf
-        else:
-            open_access = {"url": getattr(paper.openAccessPdf, "url", "")}
-
-    authors = []
-    for a in paper.authors or []:
-        name = a.get("name", "") if isinstance(a, dict) else getattr(a, "name", "")
-        if name:
-            authors.append(name)
-
-    fields_of_study = paper.fieldsOfStudy or []
-    if not isinstance(fields_of_study, list):
-        fields_of_study = list(fields_of_study)
-
-    link = _get_arxiv_link(arxiv_id) or paper.url or ""
-    pdf_url = _get_pdf_url(arxiv_id, open_access)
+    open_access = paper.get("openAccessPdf") or None
+    authors = [name for a in paper.get("authors") or [] if (name := a.get("name"))]
+    url = paper.get("url") or ""
 
     return {
-        "paper_id": paper.paperId,
-        "title": paper.title or "Untitled",
+        "paper_id": paper["paperId"],
+        "title": paper.get("title") or "Untitled",
         "authors": authors,
-        "abstract": paper.abstract,
-        "publication_date": paper.publicationDate.strftime("%Y-%m-%d") if paper.publicationDate else None,
-        "year": paper.year,
+        "abstract": paper.get("abstract"),
+        "publication_date": paper.get("publicationDate"),
+        "year": paper.get("year"),
         "arxiv_id": arxiv_id,
         "doi": doi,
-        "venue": paper.venue or "",
-        "tldr": tldr_text,
-        "s2_url": paper.url or "",
-        "fields_of_study": fields_of_study,
-        "citation_count": paper.citationCount or 0,
-        "influential_citation_count": paper.influentialCitationCount or 0,
-        "link": link,
-        "pdf_url": pdf_url,
+        "venue": paper.get("venue") or "",
+        "tldr": (paper.get("tldr") or {}).get("text") or "",
+        "s2_url": url,
+        "fields_of_study": paper.get("fieldsOfStudy") or [],
+        "citation_count": paper.get("citationCount") or 0,
+        "influential_citation_count": paper.get("influentialCitationCount") or 0,
+        "link": _get_arxiv_link(arxiv_id) or url,
+        "pdf_url": _get_pdf_url(arxiv_id, open_access),
         "open_access_pdf_url": (open_access or {}).get("url") or None,
     }
 
 
-def fetch_paper(sch: SemanticScholar, paper_id: str) -> dict:
-    """Fetch a single paper from S2 API and return a normalized dict."""
-    paper = sch.get_paper(paper_id, fields=S2_FIELDS)
-    return _normalize_paper(paper)
-
-
-def fetch_papers_batch(
-    sch: SemanticScholar, paper_ids: list[str]
-) -> tuple[list[dict], list[str], list[str]]:
+def fetch_papers_batch(paper_ids: list[str], api_key: str | None = None) -> tuple[list[dict], list[str], list[str]]:
     """Fetch papers in batch via POST /paper/batch, chunking if needed.
 
     Returns (normalized_papers, not_found_ids, failed_ids).
@@ -411,43 +382,26 @@ def fetch_papers_batch(
     for i in range(0, len(paper_ids), S2_BATCH_SIZE):
         chunk = paper_ids[i : i + S2_BATCH_SIZE]
         try:
-            papers, not_found = sch.get_papers(chunk, fields=S2_FIELDS, return_not_found=True)
-        except Exception as e:
+            papers, not_found = fetch_s2_batch(chunk, S2_FIELDS, api_key)
+        except (requests.RequestException, ValueError) as e:
             LOGGER.error(f"Batch fetch failed for chunk {i // S2_BATCH_SIZE + 1}: {e}")
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status == 429 and not api_key:
+                LOGGER.warning("S2 rate limits the shared unauthenticated pool. Set S2_API_KEY for your own limit.")
             all_failed.extend(chunk)
             continue
         for p in papers:
             try:
                 all_papers.append(_normalize_paper(p))
             except Exception as e:
-                paper_id = getattr(p, "paperId", "unknown")
-                LOGGER.error(f"Failed to normalize paper {paper_id}: {e}")
-        all_not_found.extend(nf.paperId if hasattr(nf, "paperId") else nf for nf in not_found)
+                LOGGER.error(f"Failed to normalize paper {p.get('paperId', 'unknown')}: {e}")
+        all_not_found.extend(not_found)
 
     return all_papers, all_not_found, all_failed
 
 
 def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path] | None = None) -> None:
-    """Upsert a normalized paper dict into the DB and write an Obsidian note."""
-    upsert_paper(
-        DB_PATH,
-        paper_id=paper["paper_id"],
-        title=paper["title"],
-        authors=paper["authors"],
-        abstract=paper["abstract"],
-        publication_date=paper["publication_date"],
-        year=paper["year"],
-        arxiv_id=paper["arxiv_id"],
-        doi=paper["doi"],
-        venue=paper["venue"],
-        tldr=paper["tldr"],
-        s2_url=paper["s2_url"],
-        fields_of_study=paper["fields_of_study"],
-        citation_count=paper["citation_count"],
-        influential_citation_count=paper["influential_citation_count"],
-        open_access_pdf_url=paper["open_access_pdf_url"],
-    )
-
+    """Write an Obsidian note for a normalized paper dict, then upsert it into the DB."""
     pub_date = _parse_publication_date(paper["publication_date"])
 
     write_obsidian_paper(
@@ -467,6 +421,25 @@ def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path]
         citation_count=paper["citation_count"],
         download_pdf=download_pdf,
         arxiv_index=arxiv_index,
+    )
+    # After the note: a DB row without a note would make later runs skip the paper
+    upsert_paper(
+        DB_PATH,
+        paper_id=paper["paper_id"],
+        title=paper["title"],
+        authors=paper["authors"],
+        abstract=paper["abstract"],
+        publication_date=paper["publication_date"],
+        year=paper["year"],
+        arxiv_id=paper["arxiv_id"],
+        doi=paper["doi"],
+        venue=paper["venue"],
+        tldr=paper["tldr"],
+        s2_url=paper["s2_url"],
+        fields_of_study=paper["fields_of_study"],
+        citation_count=paper["citation_count"],
+        influential_citation_count=paper["influential_citation_count"],
+        open_access_pdf_url=paper["open_access_pdf_url"],
     )
 
 
@@ -520,16 +493,18 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, show_path=False)],
     )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("dotenv.main").setLevel(logging.ERROR)
 
-    # Initialize database
-    init_db(DB_PATH)
+    # Create the vault's Papers/ and PDFs/ folders, but not the vault itself, so a wrong vault path fails here
+    try:
+        for directory in (PAPERS_DIR, PDFS_DIR) if args.download_pdf else (PAPERS_DIR,):
+            directory.mkdir(exist_ok=True)
+    except OSError as e:
+        LOGGER.error(f"Cannot create {e.filename}: {e.strerror}. Check OBSIDIAN_VAULT_DIR.")
+        raise SystemExit(1) from e
 
-    # Initialize S2 client
+    init_db(DB_PATH)
     api_key = _load_s2_api_key()
-    sch = SemanticScholar(api_key=api_key) if api_key else SemanticScholar()
 
     # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
     s2_ids: list[str] = []
@@ -567,7 +542,7 @@ def main():
 
     # Phase 2: Batch fetch from S2 API
     LOGGER.info(f"Fetching {len(s2_ids)} paper(s) from Semantic Scholar...")
-    papers, not_found, failed = fetch_papers_batch(sch, s2_ids)
+    papers, not_found, failed = fetch_papers_batch(s2_ids, api_key)
 
     LOGGER.info(
         f"Retrieved {len(papers)} paper(s), {len(not_found)} not found, {len(failed)} failed."
@@ -582,7 +557,11 @@ def main():
     ]
     if arxiv_fallback_ids:
         LOGGER.info(f"Falling back to arXiv API for {len(arxiv_fallback_ids)} paper(s)...")
-        arxiv_papers = fetch_arxiv_papers(arxiv_fallback_ids)
+        try:
+            arxiv_papers = fetch_arxiv_papers(arxiv_fallback_ids)
+        except (requests.RequestException, ValueError) as e:
+            LOGGER.error(f"arXiv API request failed: {e}")
+            arxiv_papers = []
         LOGGER.info(f"Retrieved {len(arxiv_papers)} paper(s) from arXiv.")
         papers.extend(arxiv_papers)
 
