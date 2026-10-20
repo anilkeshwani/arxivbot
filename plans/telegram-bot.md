@@ -69,7 +69,7 @@ Long polling with `timeout=30` blocks waiting for messages, uses minimal resourc
 **handle_message** logic:
 
 1. Validate `chat.id` against `ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS`
-2. Extract paper identifiers — reuse `arxivbot.utils.parse_paper_id()`
+2. Extract paper identifiers — reuse `arxivbot.identifiers.parse_paper_id()`
 3. Send "Processing..." reply via Telegram `sendMessage`
 4. Run `obsidian-import` as subprocess: `obsidian-import <ids>`
    (this creates the markdown note, downloads PDF to `PDFs/`, updates `.papers.db`)

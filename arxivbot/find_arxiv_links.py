@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 import argparse
-import re
 from pathlib import Path
 
+from arxivbot.identifiers import ARXIV_URL_RE
 
-# return string matches for the regex pattern: arxiv.org\/...\/[0-9]{4}\.[0-9]{5}
+
 def find_arxiv_links(text):
-    pattern = re.compile(r"arxiv\.org/(?:abs|pdf|html)/(\d{4}\.\d{4,5}(?:v\d+)?)")
-    return pattern.findall(text)
+    """Return the arXiv IDs (with any version suffix) of every arXiv link in `text`."""
+    return ARXIV_URL_RE.findall(text)
 
 
 def clargs():

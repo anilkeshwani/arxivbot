@@ -18,6 +18,9 @@ dependencies = [
     "semanticscholar>=0.8.0",
 ]
 
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
 [tool.setuptools.packages.find]
 include = ["arxivbot*"]
 

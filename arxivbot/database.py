@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+from arxivbot.identifiers import normalize_doi, strip_arxiv_version
 
 
 _SCHEMA = """
@@ -32,13 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 """
 
 
-def _strip_arxiv_version(arxiv_id: str | None) -> str | None:
-    """Normalize arXiv ID by stripping the version suffix (e.g., '2109.00301v3' -> '2109.00301')."""
-    if not arxiv_id:
-        return arxiv_id
-    return re.sub(r"v\d+$", "", arxiv_id)
-
-
 def _get_connection(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -51,17 +45,13 @@ def init_db(db_path: Path) -> None:
     """Create the papers table and indexes if they don't exist."""
     with _get_connection(db_path) as conn:
         conn.executescript(_SCHEMA)
-        # Normalize any versioned arXiv IDs (e.g., "2109.00301v3" -> "2109.00301")
-        rows = conn.execute(
-            "SELECT paper_id, arxiv_id FROM papers WHERE arxiv_id IS NOT NULL AND arxiv_id LIKE '%v%'"
-        ).fetchall()
-        for row in rows:
-            clean = _strip_arxiv_version(row["arxiv_id"])
-            if clean != row["arxiv_id"]:
-                conn.execute(
-                    "UPDATE papers SET arxiv_id = ? WHERE paper_id = ?",
-                    (clean, row["paper_id"]),
-                )
+        # Normalize identifiers stored before lookups stripped arXiv versions and ignored DOI case
+        for column, normalize in (("arxiv_id", strip_arxiv_version), ("doi", normalize_doi)):
+            rows = conn.execute(f"SELECT paper_id, {column} FROM papers WHERE {column} IS NOT NULL").fetchall()
+            for row in rows:
+                clean = normalize(row[column])
+                if clean != row[column]:
+                    conn.execute(f"UPDATE papers SET {column} = ? WHERE paper_id = ?", (clean, row["paper_id"]))
 
 
 def paper_exists(
@@ -72,21 +62,7 @@ def paper_exists(
     doi: str | None = None,
 ) -> bool:
     """Check if a paper exists in the database by S2 paper_id, arXiv ID, or DOI."""
-    with _get_connection(db_path) as conn:
-        if paper_id:
-            row = conn.execute("SELECT 1 FROM papers WHERE paper_id = ?", (paper_id,)).fetchone()
-            if row:
-                return True
-        if arxiv_id:
-            clean_id = _strip_arxiv_version(arxiv_id)
-            row = conn.execute("SELECT 1 FROM papers WHERE arxiv_id = ?", (clean_id,)).fetchone()
-            if row:
-                return True
-        if doi:
-            row = conn.execute("SELECT 1 FROM papers WHERE doi = ?", (doi,)).fetchone()
-            if row:
-                return True
-    return False
+    return get_paper_title(db_path, paper_id=paper_id, arxiv_id=arxiv_id, doi=doi) is not None
 
 
 def get_paper_title(
@@ -97,20 +73,17 @@ def get_paper_title(
     doi: str | None = None,
 ) -> str | None:
     """Look up a paper's title by S2 paper_id, arXiv ID, or DOI. Returns None if not found."""
+    lookups = (
+        ("paper_id", paper_id),
+        ("arxiv_id", strip_arxiv_version(arxiv_id) if arxiv_id else None),
+        ("doi", normalize_doi(doi) if doi else None),
+    )
     with _get_connection(db_path) as conn:
-        if paper_id:
-            row = conn.execute("SELECT title FROM papers WHERE paper_id = ?", (paper_id,)).fetchone()
-            if row:
-                return row["title"]
-        if arxiv_id:
-            clean_id = _strip_arxiv_version(arxiv_id)
-            row = conn.execute("SELECT title FROM papers WHERE arxiv_id = ?", (clean_id,)).fetchone()
-            if row:
-                return row["title"]
-        if doi:
-            row = conn.execute("SELECT title FROM papers WHERE doi = ?", (doi,)).fetchone()
-            if row:
-                return row["title"]
+        for column, value in lookups:
+            if value:
+                row = conn.execute(f"SELECT title FROM papers WHERE {column} = ?", (value,)).fetchone()
+                if row:
+                    return row["title"]
     return None
 
 
@@ -134,7 +107,8 @@ def upsert_paper(
     open_access_pdf_url: str | None,
 ) -> None:
     """Insert or update a paper record, preserving the original added_at timestamp."""
-    arxiv_id = _strip_arxiv_version(arxiv_id)
+    arxiv_id = strip_arxiv_version(arxiv_id) if arxiv_id else arxiv_id
+    doi = normalize_doi(doi) if doi else doi
     now = datetime.now(timezone.utc).isoformat()
     with _get_connection(db_path) as conn:
         conn.execute(
