@@ -16,6 +16,7 @@ import requests
 from dotenv import load_dotenv
 
 from arxivbot.constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR, PDFS_DIR
+from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, parse_paper_id
 
 
 LOGGER = logging.getLogger(__name__)
@@ -180,39 +181,21 @@ def send_photo(token: str, chat_id: int, photo_path: Path, caption: str = "") ->
 # --- Paper ID extraction ---
 
 
-# Patterns for extracting paper identifiers from Telegram messages
-ARXIV_URL_RE = re.compile(r"https?://(?:www\.)?arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5}(?:v\d+)?)")
-S2_URL_RE = re.compile(r"https?://(?:www\.)?semanticscholar\.org/paper/[a-zA-Z0-9-]+/([0-9a-f]{40})")
-DOI_RE = re.compile(r"\b(10\.\d{4,9}/\S+)")
-ARXIV_BARE_RE = re.compile(r"(?:^|\s)(\d{4}\.\d{4,5}(?:v\d+)?)(?:\s|$)")
-
-
 def extract_paper_ids(text: str) -> list[str]:
-    """Extract paper identifiers from message text. Returns raw IDs (not S2-formatted)."""
-    ids: list[str] = []
-
-    for m in ARXIV_URL_RE.finditer(text):
-        ids.append(m.group(1))
-
-    for m in S2_URL_RE.finditer(text):
-        ids.append(m.group(1))
-
-    for m in DOI_RE.finditer(text):
-        ids.append(m.group(1))
-
+    """Extract paper identifiers from message text. Returns raw IDs (not S2-formatted), one per paper."""
+    ids = [m.group(1) for regex in (ARXIV_URL_RE, S2_URL_RE, DOI_RE) for m in regex.finditer(text)]
     # Only try bare arXiv IDs if no URLs matched (avoids double-matching)
     if not ids:
-        for m in ARXIV_BARE_RE.finditer(text):
-            ids.append(m.group(1))
+        ids = [m.group(0) for m in ARXIV_ID_RE.finditer(text)]
 
-    # Deduplicate preserving order
-    seen = set()
-    unique = []
-    for pid in ids:
-        if pid not in seen:
-            seen.add(pid)
-            unique.append(pid)
-    return unique
+    # One raw ID per paper, e.g. an arXiv link and its arXiv DOI in the same message
+    raw_by_s2_id: dict[str, str] = {}
+    for raw_id in ids:
+        try:
+            raw_by_s2_id.setdefault(parse_paper_id(raw_id), raw_id)
+        except ValueError:
+            continue
+    return list(raw_by_s2_id.values())
 
 
 # --- Figure extraction ---

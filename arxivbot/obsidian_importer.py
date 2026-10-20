@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
 from datetime import date
 from pathlib import Path
@@ -18,9 +17,11 @@ from pathvalidate import sanitize_filename
 from rich.logging import RichHandler
 from semanticscholar import SemanticScholar
 
+from arxivbot.arxiv_api import fetch_arxiv_papers
 from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
-from arxivbot.database import get_paper_title, init_db, paper_exists, upsert_paper
-from arxivbot.utils import inflect_day, parse_paper_id
+from arxivbot.database import get_paper_title, init_db, upsert_paper
+from arxivbot.identifiers import dedup_keys, extract_arxiv_id, parse_paper_id, strip_arxiv_version
+from arxivbot.utils import inflect_day
 
 
 LOGGER = logging.getLogger(__name__)
@@ -207,14 +208,12 @@ def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
         # Check arxiv_id field
         aid = str(fm.get("arxiv_id", "") or "")
         if aid:
-            clean = re.sub(r"v\d+$", "", aid)
-            index.setdefault(clean, md)
+            index.setdefault(strip_arxiv_version(aid), md)
             continue
         # Fall back to extracting from link
-        link = str(fm.get("link", "") or "")
-        m = re.search(r"(\d{4}\.\d{4,5})", link)
-        if m:
-            index.setdefault(m.group(1), md)
+        link_arxiv_id = extract_arxiv_id(str(fm.get("link", "") or ""))
+        if link_arxiv_id:
+            index.setdefault(link_arxiv_id, md)
     LOGGER.info(f"Built arXiv index: {len(index)} papers with arXiv IDs")
     return index
 
@@ -300,8 +299,7 @@ def write_obsidian_paper(
     # Check if a note with the same arXiv ID already exists under a different filename
     existing_path = None
     if arxiv_id and arxiv_index:
-        clean_id = re.sub(r"v\d+$", "", arxiv_id)
-        existing_path = arxiv_index.get(clean_id)
+        existing_path = arxiv_index.get(strip_arxiv_version(arxiv_id))
 
     if existing_path and existing_path != obsidian_paper_path:
         LOGGER.info("Paper exists under different name, updating frontmatter:")
@@ -429,92 +427,6 @@ def fetch_papers_batch(
     return all_papers, all_not_found, all_failed
 
 
-_ARXIV_ATOM_NS = {
-    "atom": "http://www.w3.org/2005/Atom",
-    "arxiv": "http://arxiv.org/schemas/atom",
-}
-
-
-def fetch_arxiv_papers(arxiv_ids: list[str]) -> list[dict]:
-    """Fetch paper metadata directly from the arXiv Atom API.
-
-    Fallback for papers not found on Semantic Scholar. Returns normalized
-    paper dicts compatible with _process_paper(). Uses a synthetic
-    paper_id of the form "arxiv:{id}" since no S2 SHA is available.
-    """
-    if not arxiv_ids:
-        return []
-
-    id_list = ",".join(arxiv_ids)
-    url = f"https://export.arxiv.org/api/query?id_list={id_list}&max_results={len(arxiv_ids)}"
-
-    try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        LOGGER.error(f"arXiv API request failed: {e}")
-        return []
-
-    root = ET.fromstring(response.text)
-    ns = _ARXIV_ATOM_NS
-    papers: list[dict] = []
-
-    for entry in root.findall("atom:entry", ns):
-        title = " ".join(entry.findtext("atom:title", "", ns).split())
-        if not title or title.lower() == "error":
-            continue
-
-        authors = [
-            name.strip()
-            for author in entry.findall("atom:author", ns)
-            if (name := author.findtext("atom:name", "", ns).strip())
-        ]
-
-        abstract = " ".join(entry.findtext("atom:summary", "", ns).split())
-
-        # Extract bare arXiv ID from entry <id> (e.g. "http://arxiv.org/abs/1904.05862v4")
-        entry_url = entry.findtext("atom:id", "", ns)
-        match = re.search(r"(\d{4}\.\d{4,5})", entry_url)
-        arxiv_id = match.group(1) if match else ""
-
-        # Publication date
-        pub_str = entry.findtext("atom:published", "", ns)
-        pub_date = pub_str[:10] if pub_str and len(pub_str) >= 10 else None
-        year = int(pub_date[:4]) if pub_date else None
-
-        # Optional DOI from arXiv metadata
-        doi = entry.findtext("arxiv:doi", None, ns)
-
-        # arXiv categories
-        categories = [
-            cat.get("term", "")
-            for cat in entry.findall("atom:category", ns)
-            if cat.get("term")
-        ]
-
-        papers.append({
-            "paper_id": f"arxiv:{arxiv_id}",
-            "title": title,
-            "authors": authors,
-            "abstract": abstract,
-            "publication_date": pub_date,
-            "year": year,
-            "arxiv_id": arxiv_id,
-            "doi": doi,
-            "venue": "",
-            "tldr": "",
-            "s2_url": "",
-            "fields_of_study": categories,
-            "citation_count": 0,
-            "influential_citation_count": 0,
-            "link": f"https://arxiv.org/abs/{arxiv_id}",
-            "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
-            "open_access_pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
-        })
-
-    return papers
-
-
 def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path] | None = None) -> None:
     """Upsert a normalized paper dict into the DB and write an Obsidian note."""
     upsert_paper(
@@ -558,40 +470,40 @@ def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path]
     )
 
 
-def _paper_exists_locally(s2_id: str) -> bool:
-    """Check whether a paper is already in the local DB, given its S2 query ID."""
+def _query_id_fields(s2_id: str) -> dict[str, str]:
+    """Map an S2 query ID from parse_paper_id to the paper_id / arxiv_id / doi lookup fields of the local DB."""
     if s2_id.startswith("ARXIV:"):
-        return paper_exists(DB_PATH, arxiv_id=s2_id.removeprefix("ARXIV:"))
+        return {"arxiv_id": s2_id.removeprefix("ARXIV:")}
     if s2_id.startswith("DOI:"):
-        return paper_exists(DB_PATH, doi=s2_id.removeprefix("DOI:"))
-    if s2_id.startswith("CORPUSID:"):
-        LOGGER.debug(f"Cannot resolve CorpusID locally (DB does not store CorpusIDs): {s2_id}")
-        return False
-    return paper_exists(DB_PATH, paper_id=s2_id)
+        return {"doi": s2_id.removeprefix("DOI:")}
+    if s2_id.upper().startswith("CORPUSID:"):
+        return {}  # the DB does not store CorpusIDs
+    return {"paper_id": s2_id}
 
 
-def _get_title_for_s2_id(s2_id: str) -> str | None:
-    """Look up the title for a paper in the local DB given its S2 query ID."""
-    if s2_id.startswith("ARXIV:"):
-        return get_paper_title(DB_PATH, arxiv_id=s2_id.removeprefix("ARXIV:"))
-    if s2_id.startswith("DOI:"):
-        return get_paper_title(DB_PATH, doi=s2_id.removeprefix("DOI:"))
-    if s2_id.startswith("CORPUSID:"):
-        return None
-    return get_paper_title(DB_PATH, paper_id=s2_id)
+def _paper_keys(paper_id: str | None = None, arxiv_id: str | None = None, doi: str | None = None) -> list[str]:
+    """dedup_keys under the local DB's field names, so _query_id_fields output can be passed as **kwargs."""
+    return dedup_keys(s2_id=paper_id, arxiv_id=arxiv_id, doi=doi)
 
 
-def _find_raw_input(paper: dict, raw_by_s2_id: dict[str, str]) -> str | None:
+def _drop_duplicate_papers(papers: list[dict]) -> list[dict]:
+    """Keep the first of any fetched papers sharing a dedup key, e.g. one paper requested by arXiv ID and DOI."""
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for paper in papers:
+        keys = _paper_keys(paper["paper_id"], paper["arxiv_id"], paper["doi"])
+        if seen.isdisjoint(keys):
+            unique.append(paper)
+        else:
+            LOGGER.info(f"Skipping duplicate of an earlier input: \"{paper['title']}\"")
+        seen.update(keys)
+    return unique
+
+
+def _find_raw_input(paper: dict, raw_by_key: dict[str, str]) -> str | None:
     """Find the raw user input that corresponds to a fetched paper."""
-    if paper.get("arxiv_id"):
-        raw = raw_by_s2_id.get(f"ARXIV:{paper['arxiv_id']}")
-        if raw:
-            return raw
-    if paper.get("doi"):
-        raw = raw_by_s2_id.get(f"DOI:{paper['doi']}")
-        if raw:
-            return raw
-    return raw_by_s2_id.get(paper.get("paper_id", ""))
+    keys = _paper_keys(paper.get("paper_id"), paper.get("arxiv_id"), paper.get("doi"))
+    return next((raw_by_key[k] for k in keys if k in raw_by_key), None)
 
 
 def main():
@@ -622,7 +534,8 @@ def main():
     # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
     s2_ids: list[str] = []
     raw_by_s2_id: dict[str, str] = {}  # s2_id -> first raw input (for error messages)
-    skipped_local: list[tuple[str, str]] = []  # (raw_id, s2_id)
+    raw_by_key: dict[str, str] = {}  # dedup key -> first raw input (to label fetched papers)
+    skipped_local: list[tuple[str, str]] = []  # (raw_id, stored title)
     for raw_id in args.id_list:
         try:
             s2_id = parse_paper_id(raw_id)
@@ -632,14 +545,16 @@ def main():
         if s2_id in raw_by_s2_id:
             LOGGER.warning(f"Skipping {raw_id!r}: resolves to same ID as {raw_by_s2_id[s2_id]!r}")
             continue
-        if not args.force and _paper_exists_locally(s2_id):
-            skipped_local.append((raw_id, s2_id))
+        query_fields = _query_id_fields(s2_id)
+        if not args.force and (title := get_paper_title(DB_PATH, **query_fields)) is not None:
+            skipped_local.append((raw_id, title))
             continue
         s2_ids.append(s2_id)
         raw_by_s2_id[s2_id] = raw_id
+        for key in _paper_keys(**query_fields):
+            raw_by_key.setdefault(key, raw_id)
 
-    for raw_id, s2_id in skipped_local:
-        title = _get_title_for_s2_id(s2_id)
+    for raw_id, title in skipped_local:
         title_suffix = f" — \"{title}\"" if title else ""
         LOGGER.info(f"Already in local database, skipping: {raw_id!r}{title_suffix} (use --force to re-fetch)")
 
@@ -675,16 +590,16 @@ def main():
     arxiv_retrieved = {p["arxiv_id"] for p in papers if p.get("arxiv_id")}
     for s2_id in s2_missed_ids:
         raw = raw_by_s2_id.get(s2_id, s2_id)
-        if s2_id.startswith("ARXIV:"):
-            bare_id = s2_id.removeprefix("ARXIV:")
-            if bare_id in arxiv_retrieved:
-                continue  # successfully retrieved via arXiv fallback
+        if s2_id.removeprefix("ARXIV:") in arxiv_retrieved:
+            continue  # successfully retrieved via arXiv fallback
         LOGGER.warning(f"Paper not found on S2 or arXiv: {raw!r} (resolved to {s2_id!r})")
+
+    papers = _drop_duplicate_papers(papers)
 
     # Phase 3: Build arXiv index and process each fetched paper (DB upsert + Obsidian note)
     arxiv_index = _build_arxiv_index(PAPERS_DIR)
     for paper in papers:
-        raw_input = _find_raw_input(paper, raw_by_s2_id)
+        raw_input = _find_raw_input(paper, raw_by_key)
         input_prefix = f"{raw_input!r} — " if raw_input else ""
         try:
             LOGGER.info(f"Importing: {input_prefix}\"{paper['title']}\"")

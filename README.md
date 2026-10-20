@@ -89,10 +89,13 @@ obsidian-import 2408.16532 --force
 ├── README.md
 ├── arxivbot/
 │   ├── __init__.py
+│   ├── arxiv_api.py
 │   ├── constants.py
 │   ├── database.py
 │   ├── find_arxiv_links.py
+│   ├── identifiers.py
 │   ├── obsidian_importer.py
+│   ├── telegram_bot.py
 │   └── utils.py
 ├── credentials_template.env
 ├── plans/
@@ -102,6 +105,7 @@ obsidian-import 2408.16532 --force
 │   ├── resources.md
 │   └── s2_api_migration_reference.md
 ├── pyproject.toml
+├── tests/
 └── uv.lock
 ```
 
