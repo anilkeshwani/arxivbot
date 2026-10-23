@@ -44,6 +44,7 @@ All paths can be overridden via environment variables (defaults shown):
 | `OBSIDIAN_PAPERS_DIR` | `$OBSIDIAN_VAULT_DIR/Papers` | Directory for paper notes |
 | `OBSIDIAN_PDFS_DIR` | `$OBSIDIAN_VAULT_DIR/PDFs` | Directory for downloaded PDFs |
 | `OBSIDIAN_DB_PATH` | `$OBSIDIAN_VAULT_DIR/.papers.db` | SQLite database path |
+| `OBSIDIAN_CLIPPINGS_DIR` | `$OBSIDIAN_VAULT_DIR/Clippings` | Directory for clipped web pages |
 | `S2_API_KEY` | _(none)_ | Semantic Scholar API key |
 
 ## Usage
@@ -84,35 +85,30 @@ obsidian-import 2408.16532 --force
 
 ## Clipping web pages
 
-`obsidian-clip` saves a page to `Clippings/` with the same frontmatter as the Obsidian Web Clipper's default template (`title`, `source`, `author`, `published`, `created`, `description`, `tags: clippings`). Extraction uses [Defuddle](https://github.com/kepano/defuddle), the library behind the Web Clipper, through its CLI:
+`obsidian-clip` saves a page to `Clippings/` with the frontmatter of the Obsidian Web Clipper's default template. It extracts the page with the CLI of [Defuddle](https://github.com/kepano/defuddle), the library behind the Web Clipper:
 
 ```bash
-npm install -g defuddle   # replaces the deprecated defuddle-cli package
+npm install -g defuddle
 obsidian-clip https://example.com/some-article [<url> ...]
 ```
 
-Re-clipping a URL that is already in `Clippings/` is a no-op. Pages that need JavaScript or a login to render usually yield no content and fail, as they would in the Web Clipper.
-
-| Variable | Default | Description |
-|---|---|---|
-| `OBSIDIAN_CLIPPINGS_DIR` | `$OBSIDIAN_VAULT_DIR/Clippings` | Directory for clipped pages |
-| `DEFUDDLE_BIN` | `defuddle` | Defuddle CLI to run (set an absolute path when `PATH` lacks it, e.g. under systemd) |
+A URL that is already the `source` of a note in `Clippings/` is skipped. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
 
 ## Telegram bot
 
-`arxivbot-telegram` watches a Telegram chat or channel. Every link or identifier posted is routed:
+`arxivbot-telegram` watches a Telegram chat or channel and routes every link or identifier posted to it:
 
-- **Papers** (arXiv URLs and IDs, DOIs and publisher links containing one, Semantic Scholar URLs, Hugging Face and alphaXiv paper pages) are imported with `obsidian-import`.
-- **Any other link** is clipped with `obsidian-clip`.
+- **Papers** (arXiv URLs and IDs, DOIs and publisher links containing one, Semantic Scholar URLs, Hugging Face and alphaXiv paper pages) are imported as by `obsidian-import`. A paper link that cannot be found is clipped instead.
+- **Any other link** is clipped as by `obsidian-clip`.
 
-Each paper or page is committed to the vault as its own commit, staging only the files that item created, then pushed once per post. By default each imported paper is also analyzed with `claude -p` and the analysis appended to its note; set `ARXIVBOT_TELEGRAM_ANALYZE=0` to only import (PDFs are then not downloaded either).
+Each paper or page becomes its own commit in the vault, containing only the files it wrote, and each post ends with one push. By default every imported paper is also analyzed with `claude -p` and the analysis appended to its note; set `ARXIVBOT_TELEGRAM_ANALYZE=0` to only import (PDFs are then not downloaded either).
 
 ### Setup
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) (`/newbot`) and copy its token.
-2. Create a private channel and add the bot as an administrator with permission to post messages.
-3. Post anything in the channel, then find its chat ID (it starts with `-100`) from `https://api.telegram.org/bot<TOKEN>/getUpdates` under `channel_post.chat.id`. Do this before starting the bot, which consumes updates.
-4. Write the credentials file:
+2. Create a private channel and add the bot as an administrator that can post messages.
+3. Post anything in the channel, then read its chat ID (it starts with `-100`) from `channel_post.chat.id` at `https://api.telegram.org/bot<TOKEN>/getUpdates`. Do this before starting the bot, which consumes updates.
+4. Write the credentials file. `ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS` is comma-separated, and posts from any other chat are ignored.
 
    ```bash
    mkdir -p ~/.config/arxivbot && chmod 700 ~/.config/arxivbot
@@ -123,20 +119,14 @@ Each paper or page is committed to the vault as its own commit, staging only the
    chmod 600 ~/.config/arxivbot/credentials.env
    ```
 
-   `ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS` is comma-separated, so a direct chat with the bot can be allowed alongside the channel. Posts from any other chat are ignored.
-
-5. Run it on a machine with a checkout of the vault that can `git push`, either directly (`arxivbot-telegram`) or as a systemd user service:
+5. Run it on a host with a checkout of the vault that can `git push` unattended (an SSH key without a passphrase, or an HTTPS credential helper), either directly or as a systemd user service:
 
    ```bash
-   cp deploy/arxivbot-telegram.service ~/.config/systemd/user/
-   # edit OBSIDIAN_VAULT_DIR, DEFUDDLE_BIN and PATH in the unit to match the host
+   cp deploy/arxivbot-telegram.service ~/.config/systemd/user/   # then adjust its paths to the host
    systemctl --user daemon-reload
    systemctl --user enable --now arxivbot-telegram
    loginctl enable-linger "$USER"   # keep it running while logged out
-   journalctl --user -u arxivbot-telegram -f
    ```
-
-The bot replies to each post with a status line per item, and `/help` lists what it recognizes.
 
 ## Directory structure
 
