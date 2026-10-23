@@ -1,0 +1,18 @@
+[Unit]
+Description=arxivbot Telegram bot: import papers and clip web pages into the Obsidian vault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/arxivbot-telegram
+Environment=OBSIDIAN_VAULT_DIR=%h/journal
+# systemd does not read shell profiles, so point at the Defuddle and Claude Code binaries explicitly
+Environment=DEFUDDLE_BIN=%h/.local/share/mise/installs/node/24/bin/defuddle
+Environment=PATH=%h/.local/bin:%h/.local/share/mise/installs/node/24/bin:/usr/local/bin:/usr/bin:/bin
+Environment=ARXIVBOT_TELEGRAM_ANALYZE=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
