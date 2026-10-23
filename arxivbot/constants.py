@@ -6,6 +6,9 @@ _default_vault = Path("~/Desktop/journal/").expanduser().resolve()
 OBSIDIAN_VAULT_DIR = Path(os.environ.get("OBSIDIAN_VAULT_DIR", str(_default_vault))).expanduser().resolve()
 PAPERS_DIR = Path(os.environ.get("OBSIDIAN_PAPERS_DIR", str(OBSIDIAN_VAULT_DIR / "Papers"))).expanduser().resolve()
 PDFS_DIR = Path(os.environ.get("OBSIDIAN_PDFS_DIR", str(OBSIDIAN_VAULT_DIR / "PDFs"))).expanduser().resolve()
+CLIPPINGS_DIR = (
+    Path(os.environ.get("OBSIDIAN_CLIPPINGS_DIR", str(OBSIDIAN_VAULT_DIR / "Clippings"))).expanduser().resolve()
+)
 DEFAULT_PAPER_TAGS = ["paper"]
 
 # Semantic Scholar API
