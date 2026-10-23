@@ -1,4 +1,5 @@
 from datetime import date
+import subprocess
 
 import pytest
 import yaml
@@ -82,3 +83,16 @@ def test_clip_url_rejects_empty_extraction(tmp_path, monkeypatch):
     with pytest.raises(ClipError):
         clip_url(URL, tmp_path)
     assert not list(tmp_path.iterdir())
+
+
+def test_run_defuddle_sends_a_browser_user_agent(monkeypatch):
+    calls = []
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "", "Error: Failed to fetch: 403 Forbidden")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(ClipError, match="403 Forbidden"):
+        web_clipper.run_defuddle(URL)
+    assert calls[0][calls[0].index("--user-agent") + 1].startswith("Mozilla/5.0")

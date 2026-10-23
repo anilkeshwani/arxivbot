@@ -17,6 +17,8 @@ from arxivbot.constants import CLIPPINGS_DIR
 LOGGER = logging.getLogger(__name__)
 
 DEFUDDLE_TIMEOUT = 120
+# Sites such as Medium refuse Defuddle's default User-Agent but serve a browser's
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
 # Characters the Web Clipper strips from note filenames
 _FILENAME_UNSAFE_RE = re.compile(r'[<>:"/\\|?*#^\[\]\x00-\x1f]')
@@ -38,7 +40,8 @@ def run_defuddle(url: str) -> dict:
         out_path = Path(tmp_dir) / "page.json"
         try:
             result = subprocess.run(
-                ["defuddle", "parse", url, "--json", "--markdown", "--output", str(out_path)],
+                ["defuddle", "parse", url, "--json", "--markdown", "--output", str(out_path)]
+                + ["--user-agent", USER_AGENT],
                 capture_output=True,
                 text=True,
                 timeout=DEFUDDLE_TIMEOUT,
