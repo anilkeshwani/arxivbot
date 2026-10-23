@@ -47,3 +47,4 @@ force-sort-within-sections = true
 [project.scripts]
 obsidian-import = "arxivbot.obsidian_importer:main"
 arxivbot-telegram = "arxivbot.telegram_bot:main"
+obsidian-clip = "arxivbot.web_clipper:main"
