@@ -46,3 +46,12 @@ def test_init_db_normalizes_existing_dois(tmp_path):
         )
     init_db(db_path)
     assert paper_exists(db_path, doi="10.1109/icassp.2023.1")
+
+
+def test_connections_are_closed_so_writes_reach_the_db_file(tmp_path):
+    db_path = tmp_path / "papers.db"
+    init_db(db_path)
+    _upsert(db_path)
+    assert paper_exists(db_path, arxiv_id="2408.16532")
+    # The last connection to close checkpoints the WAL into the main file and deletes it
+    assert not (tmp_path / "papers.db-wal").exists()
