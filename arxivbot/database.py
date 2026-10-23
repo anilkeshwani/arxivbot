@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -33,12 +35,18 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 """
 
 
-def _get_connection(db_path: Path) -> sqlite3.Connection:
+@contextmanager
+def _get_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
+    # Closed on exit, since a lingering connection keeps other processes' writes in the WAL file, out of git's sight
     conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    try:
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db(db_path: Path) -> None:
