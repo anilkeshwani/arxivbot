@@ -21,7 +21,7 @@ from arxivbot.constants import CLIPPINGS_DIR, DB_PATH, OBSIDIAN_VAULT_DIR, PAPER
 from arxivbot.database import get_paper_title, init_db
 from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, extract_dois, parse_paper_id
 from arxivbot.obsidian_importer import _query_id_fields
-from arxivbot.web_clipper import clip_url
+from arxivbot.web_clipper import ClipError, clip_url
 
 
 LOGGER = logging.getLogger(__name__)
@@ -549,7 +549,8 @@ def run_item(label: str, job) -> tuple[str, bool]:
     try:
         status, commit_message = job()
     except Exception as e:
-        LOGGER.error(f"Error processing {label}: {e}", exc_info=True)
+        # A clip failure (403, empty page) is expected and its message says it all, so it gets no traceback
+        LOGGER.error(f"Error processing {label}: {e}", exc_info=not isinstance(e, ClipError))
         status, commit_message = f"Error processing {label}: {e}", None
 
     paths = changed_paths(before, vault_snapshot())

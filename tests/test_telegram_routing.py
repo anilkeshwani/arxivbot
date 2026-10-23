@@ -170,3 +170,11 @@ def test_process_paper_clips_the_link_when_the_paper_is_not_found(vault, monkeyp
     url = "https://www.biorxiv.org/content/10.1101/2024.05.01.592000v1.full"
     assert process_paper("10.1101/2024.05.01.592000v1.full", url, "tok", 1, 2) == (f"Clipped: {url}", "Clip")
     assert process_paper("2408.16532", None, "tok", 1, 2) == ("Paper not found: 2408.16532", None)
+
+
+def test_run_item_logs_clip_failures_without_a_traceback(vault, caplog):
+    def job():
+        raise telegram_bot.ClipError("Defuddle failed: 403 Forbidden")
+
+    assert run_item("https://e.com", job) == ("Error processing https://e.com: Defuddle failed: 403 Forbidden", False)
+    assert not caplog.records[-1].exc_info
