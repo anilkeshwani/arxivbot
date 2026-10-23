@@ -132,6 +132,7 @@ Each paper or page becomes its own commit in the vault, containing only the file
 
 ```
 .
+├── CHANGELOG.md
 ├── README.md
 ├── arxivbot/
 │   ├── __init__.py
