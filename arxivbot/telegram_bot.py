@@ -9,7 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,20 +17,21 @@ import fitz  # PyMuPDF
 import requests
 from dotenv import load_dotenv
 
-from arxivbot.constants import OBSIDIAN_VAULT_DIR, PAPERS_DIR, PDFS_DIR
-from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, S2_URL_RE, extract_dois, parse_paper_id
-from arxivbot.web_clipper import ClipError, clip_url
+from arxivbot.constants import CLIPPINGS_DIR, DB_PATH, OBSIDIAN_VAULT_DIR, PAPERS_DIR, PDFS_DIR
+from arxivbot.database import get_paper_title, init_db
+from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, extract_dois, parse_paper_id
+from arxivbot.obsidian_importer import _query_id_fields
+from arxivbot.web_clipper import clip_url
 
 
 LOGGER = logging.getLogger(__name__)
 
 CREDENTIALS_PATH = Path("~/.config/arxivbot/credentials.env").expanduser()
 
-# Vault paths obsidian-import writes to, diffing their git status around an import shows what it changed.
-# PDFs/ is left out: downloaded PDFs are not committed to the vault.
-IMPORT_PATHS = ("Papers", ".papers.db")
+# Vault paths the bot writes to and commits (PDFs/ is not committed)
+VAULT_WRITE_PATHS = (PAPERS_DIR, DB_PATH, CLIPPINGS_DIR)
+GIT_TIMEOUT = 120
 
-URL_RE = re.compile(r"https?://[^\s<>]+")
 # Sites whose URLs carry a bare arXiv ID for a paper page, e.g. https://huggingface.co/papers/2408.16532
 ARXIV_MIRROR_HOSTS = {"huggingface.co", "alphaxiv.org", "www.alphaxiv.org", "arxiv-sanity-lite.com"}
 
@@ -167,7 +168,7 @@ def send_message(token: str, chat_id: int, text: str, reply_to: int | None = Non
     chunks = [text[i : i + max_len] for i in range(0, len(text), max_len)]
     msg_id = 0
     for chunk in chunks:
-        payload: dict = {"chat_id": chat_id, "text": chunk, "link_preview_options": {"is_disabled": True}}
+        payload: dict = {"chat_id": chat_id, "text": chunk}
         if reply_to:
             payload["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
         result = telegram_api(token, "sendMessage", json=payload)
@@ -198,9 +199,10 @@ def send_photo(token: str, chat_id: int, photo_path: Path, caption: str = "") ->
 def extract_paper_ids(text: str) -> list[str]:
     """Extract paper identifiers from message text. Returns raw IDs (not S2-formatted), one per paper."""
     ids = [m.group(1) for regex in (ARXIV_URL_RE, S2_URL_RE) for m in regex.finditer(text)] + extract_dois(text)
-    # Only try bare arXiv IDs if no URLs matched (avoids double-matching)
-    if not ids:
-        ids = [m.group(0) for m in ARXIV_ID_RE.finditer(text)]
+    # Bare arXiv IDs are only read from what the URLs and DOIs leave, so none is matched twice
+    for regex in (ARXIV_URL_RE, S2_URL_RE, DOI_RE):
+        text = regex.sub(" ", text)
+    ids += [m.group(0) for m in ARXIV_ID_RE.finditer(text)]
 
     # One raw ID per paper, e.g. an arXiv link and its arXiv DOI in the same message
     raw_by_s2_id: dict[str, str] = {}
@@ -212,22 +214,30 @@ def extract_paper_ids(text: str) -> list[str]:
     return list(raw_by_s2_id.values())
 
 
-def _trim_url(url: str) -> str:
-    """Drop sentence punctuation after a URL, keeping a closing paren that has an opener (Wikipedia-style)."""
-    while url and url[-1] in ".,;:!?'\")]}":
-        if url[-1] == ")" and url.count("(") >= url.count(")"):
-            break
-        url = url[:-1]
-    return url
+def message_text(message: dict) -> str:
+    return message.get("text") or message.get("caption") or ""
 
 
-def extract_links(message: dict) -> list[str]:
-    """URLs in a message or channel post, including hyperlinked text, in order and deduplicated."""
-    text = message.get("text") or message.get("caption") or ""
+def extract_links(message: dict) -> tuple[list[str], str]:
+    """Web links in a message or channel post, and its text with the links cut out.
+
+    Telegram marks links with entities, whose offsets count UTF-16 code units.
+    """
+    utf16 = message_text(message).encode("utf-16-le")
     entities = message.get("entities") or message.get("caption_entities") or []
-    links = [_trim_url(m.group(0)) for m in URL_RE.finditer(text)]
-    links += [e["url"] for e in entities if e.get("type") == "text_link" and e.get("url")]
-    return list(dict.fromkeys(link for link in links if link))
+    links, rest, pos = [], [], 0
+    for entity in sorted(entities, key=lambda e: e["offset"]):
+        if entity["type"] == "url":
+            start, end = 2 * entity["offset"], 2 * (entity["offset"] + entity["length"])
+            link = utf16[start:end].decode("utf-16-le")
+            links.append(link if "://" in link else f"https://{link}")
+            rest.append(utf16[pos:start].decode("utf-16-le"))
+            pos = end
+        elif entity["type"] == "text_link":
+            links.append(entity["url"])
+    rest.append(utf16[pos:].decode("utf-16-le"))
+    web_links = [link for link in dict.fromkeys(links) if urlparse(link).scheme.lower() in ("http", "https")]
+    return web_links, " ".join(rest)
 
 
 def is_paper_url(url: str) -> bool:
@@ -236,18 +246,18 @@ def is_paper_url(url: str) -> bool:
     return urlparse(url).hostname in ARXIV_MIRROR_HOSTS and ARXIV_ID_RE.search(url) is not None
 
 
-def route_message(message: dict) -> tuple[list[str], list[str]]:
-    """Split a message into (paper IDs to import, page URLs to clip)."""
-    text = message.get("text") or message.get("caption") or ""
-    links = extract_links(message)
-    clip_urls = [url for url in links if not is_paper_url(url)]
-    # Bare IDs and DOIs are only read outside URLs, so a number in a blog URL is never taken for an arXiv ID
-    chunks = [URL_RE.sub(" ", text)] + [url for url in links if is_paper_url(url)]
+def route_message(message: dict) -> tuple[list[tuple[str, str | None]], list[str]]:
+    """Split a message into papers to import, as (raw ID, link it came from), and page URLs to clip."""
+    links, text = extract_links(message)
+    paper_urls = [url for url in links if is_paper_url(url)]
+    # Bare IDs and DOIs are only read outside links, so a number in a blog URL is never taken for an arXiv ID
+    found = [(raw_id, None) for raw_id in extract_paper_ids(text)]
+    found += [(raw_id, url) for url in paper_urls for raw_id in extract_paper_ids(url)]
 
-    raw_by_s2_id: dict[str, str] = {}
-    for raw_id in (raw_id for chunk in chunks for raw_id in extract_paper_ids(chunk)):
-        raw_by_s2_id.setdefault(parse_paper_id(raw_id), raw_id)
-    return list(raw_by_s2_id.values()), clip_urls
+    papers: dict[str, tuple[str, str | None]] = {}
+    for raw_id, url in found:
+        papers.setdefault(parse_paper_id(raw_id), (raw_id, url))
+    return list(papers.values()), [url for url in links if url not in paper_urls]
 
 
 # --- Figure extraction ---
@@ -380,31 +390,44 @@ def append_analysis_to_markdown(md_path: Path, analysis: str) -> None:
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=str(OBSIDIAN_VAULT_DIR), capture_output=True, text=True, check=True)
+    # Literal pathspecs, so a note title with [brackets] is not read as a glob that stages other files
+    return subprocess.run(
+        ["git", "--literal-pathspecs", *args],
+        cwd=str(OBSIDIAN_VAULT_DIR),
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=GIT_TIMEOUT,
+    )
 
 
-def vault_status(*paths: str) -> set[str]:
-    """Porcelain status entries ("XY path") under paths, with paths relative to the vault root."""
-    out = _git("status", "--porcelain", "-z", "--untracked-files=all", "--", *paths).stdout
-    return {entry for entry in out.split("\0") if len(entry) > 3}
+def _git_error(e: subprocess.SubprocessError) -> str:
+    return (getattr(e, "stderr", None) or str(e)).strip()[:500]
 
 
-def changed_paths(before: set[str], after: set[str]) -> list[str]:
-    # A file the user already had dirty and the bot touched again keeps its entry, so it is left for them to commit
-    return sorted(entry[3:] for entry in after - before)
+def vault_snapshot() -> dict[Path, tuple[int, int] | None]:
+    """(mtime, size) of the uncommitted files under VAULT_WRITE_PATHS, keyed by absolute path."""
+    root = Path(_git("rev-parse", "--show-toplevel").stdout.strip())
+    out = _git("status", "--porcelain", "-z", "--untracked-files=all", "--", *map(str, VAULT_WRITE_PATHS)).stdout
+    # Entries are "XY path"; the original path of a rename follows as a bare field and is skipped
+    paths = [root / entry[3:] for entry in out.split("\0") if entry[2:3] == " "]
+    return {path: (path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None for path in paths}
 
 
-def git_commit(paths: list[str], message: str) -> bool:
+def changed_paths(before: dict[Path, tuple[int, int] | None], after: dict[Path, tuple[int, int] | None]) -> list[Path]:
+    return sorted(path for path, stamp in after.items() if path not in before or before[path] != stamp)
+
+
+def git_commit(paths: list[Path], message: str) -> bool:
     """Commit only the given paths, leaving anything else staged or dirty in the vault alone."""
-    if not paths:
-        return False
     try:
-        _git("add", "--", *paths)
-        _git("commit", "-m", message, "--", *paths)
+        _git("add", "--", *map(str, paths))
+        _git("commit", "-m", message, "--", *map(str, paths))
         LOGGER.info(f"Committed: {message}")
         return True
-    except subprocess.CalledProcessError as e:
-        LOGGER.error(f"git commit failed: {e.stderr.strip()[:500]}")
+    except subprocess.SubprocessError as e:
+        LOGGER.error(f"git commit failed: {_git_error(e)}")
         return False
 
 
@@ -413,74 +436,72 @@ def git_push() -> bool:
     try:
         _git("push")
         return True
-    except subprocess.CalledProcessError:
+    except subprocess.SubprocessError:
         LOGGER.info("Push rejected, rebasing onto remote and retrying")
     try:
         _git("pull", "--rebase", "--autostash")
         _git("push")
         return True
-    except subprocess.CalledProcessError as e:
-        LOGGER.error(f"git push failed: {e.stderr.strip()[:500]}")
+    except subprocess.SubprocessError as e:
+        LOGGER.error(f"git push failed: {_git_error(e)}")
+        # Never leave the vault mid-rebase, where later commits would land on a detached HEAD
+        subprocess.run(["git", "rebase", "--abort"], cwd=str(OBSIDIAN_VAULT_DIR), capture_output=True)
         return False
 
 
 def analysis_enabled() -> bool:
-    return os.environ.get("ARXIVBOT_TELEGRAM_ANALYZE", "1").strip().lower() not in {"0", "false", "no", "off"}
+    return os.environ.get("ARXIVBOT_TELEGRAM_ANALYZE", "1") != "0"
 
 
-def clip_page(url: str) -> tuple[str, list[str], str]:
-    """Clip a web page. Returns (status, changed vault paths, commit message)."""
-    LOGGER.info(f"Clipping: {url}")
-    try:
-        note_path, created = clip_url(url)
-    except ClipError as e:
-        LOGGER.error(f"Clip failed for {url}: {e}")
-        return f"Clip failed for {url}: {e}", [], ""
+def clip_page(url: str) -> tuple[str, str | None]:
+    """Clip a web page. Returns (status, commit message or None if nothing was written)."""
+    note_path, created = clip_url(url)
     if not created:
-        return f"Already clipped: {note_path.stem}", [], ""
-    rel_path = str(note_path.relative_to(OBSIDIAN_VAULT_DIR))
-    return f"Clipped: {note_path.stem}", [rel_path], f'Clip "{note_path.stem}" via Telegram'
+        return f"Already clipped: {note_path.stem}", None
+    return f"Clipped: {note_path.stem}", f'Clip "{note_path.stem}" via Telegram'
 
 
-def process_paper(paper_id: str, token: str, chat_id: int, reply_to: int | None = None) -> tuple[str, list[str], str]:
+def process_paper(
+    paper_id: str, source_url: str | None, token: str, chat_id: int, reply_to: int
+) -> tuple[str, str | None]:
     """Import a paper and, if enabled, analyze it and send the analysis to Telegram.
 
-    Returns (status, changed vault paths, commit message).
+    A paper neither Semantic Scholar nor arXiv knows is clipped from source_url instead, if it came from a link.
+    Returns (status, commit message or None if nothing was written).
     """
+    if title := get_paper_title(DB_PATH, **_query_id_fields(parse_paper_id(paper_id))):
+        return f"Already in the vault: {title}", None
     analyze = analysis_enabled()
 
-    # 1. Run obsidian-import, the PDF is only needed for the analysis
+    # 1. Run obsidian-import (the PDF is only needed for the analysis)
     LOGGER.info(f"Running obsidian-import for: {paper_id}")
-    before = vault_status(*IMPORT_PATHS)
+    before = vault_snapshot()
     result = subprocess.run(
         ["obsidian-import", paper_id] + ([] if analyze else ["--no_pdf"]),
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=120,
     )
 
     if result.returncode != 0:
         LOGGER.error(f"obsidian-import failed: {result.stderr[:500]}")
-        return f"Import failed for {paper_id}", [], ""
+        return f"Import failed for {paper_id}", None
 
     # 2. Find the created markdown from what the import changed in the vault
-    paths = changed_paths(before, vault_status(*IMPORT_PATHS))
-    mds = [p for p in paths if p.startswith("Papers/") and p.endswith(".md")]
+    mds = [p for p in changed_paths(before, vault_snapshot()) if p.parent == PAPERS_DIR and p.suffix == ".md"]
     if not mds:
-        log_lines = (result.stdout + result.stderr).strip().splitlines()
-        reason = re.sub(r"^(INFO|WARNING|ERROR)\s+", "", log_lines[-1].strip()) if log_lines else "no output"
-        return f"Nothing imported for {paper_id}: {reason}", paths, ""
+        return clip_page(source_url) if source_url else (f"Paper not found: {paper_id}", None)
 
-    md_path = OBSIDIAN_VAULT_DIR / mds[0]
+    md_path = mds[0]
     title = md_path.stem
     commit_message = f'Import "{title}" paper via Telegram'
 
     if not analyze:
-        return f"Imported: {title}", paths, commit_message
+        return f"Imported: {title}", commit_message
 
     # Check idempotency
     if IDEMPOTENCY_MARKER in md_path.read_text(encoding="utf-8"):
-        return f"Already analyzed: {title}", paths, commit_message
+        return f"Already analyzed: {title}", commit_message
 
     pdf_path = find_paper_pdf(title)
 
@@ -498,7 +519,7 @@ def process_paper(paper_id: str, token: str, chat_id: int, reply_to: int | None 
         analysis = run_claude_analysis(analysis_target, figures)
 
         if not analysis:
-            return f"Imported {title} but Claude analysis failed", paths, commit_message
+            return f"Imported {title} but Claude analysis failed", commit_message
 
         # 5. Parse figure selection and send to Telegram
         selected_figures = parse_figure_selection(analysis, figures)
@@ -519,7 +540,24 @@ def process_paper(paper_id: str, token: str, chat_id: int, reply_to: int | None 
 
     # Temp dir is now cleaned up
 
-    return f"Imported and analyzed: {title}", paths, f'Import and analyze "{title}" paper via Telegram'
+    return f"Imported and analyzed: {title}", f'Import and analyze "{title}" paper via Telegram'
+
+
+def run_item(label: str, job) -> tuple[str, bool]:
+    """Run one import or clip and commit what it wrote, even if it failed partway. Returns (status, committed)."""
+    before = vault_snapshot()
+    try:
+        status, commit_message = job()
+    except Exception as e:
+        LOGGER.error(f"Error processing {label}: {e}", exc_info=True)
+        status, commit_message = f"Error processing {label}: {e}", None
+
+    paths = changed_paths(before, vault_snapshot())
+    if not paths:
+        return status, False
+    if git_commit(paths, commit_message or f"Add {label} via Telegram"):
+        return status, True
+    return f"{status} (not committed, see the bot log)", False
 
 
 # --- Credential loading and validation ---
@@ -575,7 +613,7 @@ def load_credentials() -> tuple[str, set[int]]:
 def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> None:
     """Handle a single Telegram message or channel post."""
     chat_id = message.get("chat", {}).get("id")
-    text = message.get("text") or message.get("caption") or ""
+    text = message_text(message)
     message_id = message.get("message_id")
 
     if chat_id not in allowed_chat_ids:
@@ -596,38 +634,32 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
             "- DOI: 10.1234/example, or a publisher link containing one\n"
             "- Semantic Scholar URL\n"
             "- Hugging Face / alphaXiv paper pages\n\n"
+            "A paper link that cannot be imported is clipped instead. "
             "You can send several links in one message.",
             reply_to=message_id,
         )
         return
 
-    paper_ids, clip_urls = route_message(message)
-    if not paper_ids and not clip_urls:
+    papers, clip_urls = route_message(message)
+    if not papers and not clip_urls:
         return  # Silently ignore messages without links or paper IDs
 
-    counts = [f"{n} {noun}" for n, noun in ((len(paper_ids), "paper(s)"), (len(clip_urls), "page(s)")) if n]
-    processing_msg_id = send_message(token, chat_id, f"Processing {' and '.join(counts)}...", reply_to=message_id)
-
-    jobs = [(pid, lambda pid=pid: process_paper(pid, token, chat_id, reply_to=message_id)) for pid in paper_ids]
-    jobs += [(url, lambda url=url: clip_page(url)) for url in clip_urls]
+    jobs = [(pid, partial(process_paper, pid, url, token, chat_id, message_id)) for pid, url in papers]
+    jobs += [(url, partial(clip_page, url)) for url in clip_urls]
+    processing_msg_id = send_message(token, chat_id, f"Processing {len(jobs)} item(s)...", reply_to=message_id)
 
     # One commit per paper or page keeps the vault history atomic; a single push at the end
     results = []
     committed = False
     for label, job in jobs:
-        try:
-            status, paths, commit_message = job()
-            if commit_message:
-                committed |= git_commit(paths, commit_message)
-            results.append(status)
-        except Exception as e:
-            LOGGER.error(f"Error processing {label}: {e}", exc_info=True)
-            results.append(f"Error processing {label}: {e}")
+        status, item_committed = run_item(label, job)
+        results.append(status)
+        committed |= item_committed
 
     if committed and not git_push():
         results.append("Committed locally but git push failed, see the bot log")
 
-    edit_message(token, chat_id, processing_msg_id, "\n".join(results))
+    edit_message(token, chat_id, processing_msg_id, "\n".join(results)[:4096])
 
 
 def main() -> None:
@@ -638,6 +670,7 @@ def main() -> None:
     )
 
     token, allowed_chat_ids = load_credentials()
+    init_db(DB_PATH)
     LOGGER.info(f"arxivbot-telegram started. Allowed chat IDs: {allowed_chat_ids}")
 
     offset = 0
@@ -665,9 +698,13 @@ def main() -> None:
             continue  # Normal for long polling
         except requests.exceptions.ConnectionError as e:
             LOGGER.warning(f"Connection error (retrying in 5s): {e}")
+            import time
+
             time.sleep(5)
         except Exception as e:
             LOGGER.error(f"Unexpected error in main loop: {e}", exc_info=True)
+            import time
+
             time.sleep(5)
 
 
