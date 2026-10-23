@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from datetime import date
 from functools import partial
 from pathlib import Path
 from urllib.parse import urlparse
@@ -49,7 +50,18 @@ The paper PDF is at: {pdf_path}
 
 {figure_instructions}
 
-Follow the structure below exactly.
+Output only the analysis, in this format. It opens with an H2 heading and a callout, then the six \
+sections below as H3 headings, following their structure exactly:
+
+## <Opinionated and Captivating Summary Title> <Model Name>
+
+> [!info] #llm-generated/<your model ID, e.g. claude-opus-4-6>{br}
+> Date: {today}{br}
+> Source: Claude Code CLI{br}
+
+- The title states the paper's main finding or claim in a few words. Append the name of the \
+model or method the paper introduces, if it has one.
+- Keep the two trailing spaces at the end of each callout line; they put the lines on separate rows.
 
 ---
 
@@ -145,11 +157,16 @@ If no figures were extracted or none are relevant, output:
 - Be concrete over abstract. Prefer specific dimensions, sizes, numbers.
 - Be honest about uncertainty. If the paper is vague on a detail, say so.
 - Use structure aggressively. Bullet points for lists, paragraphs for narrative.
+- Give evaluation results as tables with directional arrows in the metric headers (↑ higher is \
+better, ↓ lower is better), and bold the key results and comparative findings.
+- When you reference another paper, look for its note in the Papers/ directory of the current \
+directory and link it as [[Note Name]] (the filename without .md) if it is there.
 - Target 600–1500 words depending on paper complexity.
 - Output Obsidian-compatible markdown.
 """
 
-IDEMPOTENCY_MARKER = "### 1. The Headline"
+# A note holding any of these already has an analysis: the summary tag, or the heading older analyses opened with
+IDEMPOTENCY_MARKERS = ("#llm-generated/", "### 1. The Headline")
 
 
 # --- Telegram API helpers ---
@@ -309,7 +326,10 @@ def run_claude_analysis(pdf_path: Path, figure_paths: list[Path]) -> str | None:
     else:
         figure_instructions = "No figures were extracted from the paper."
 
-    prompt = ANALYSIS_PROMPT.format(pdf_path=pdf_path, figure_instructions=figure_instructions)
+    # br is a Markdown line break, inserted here because whitespace linters strip it from the source
+    prompt = ANALYSIS_PROMPT.format(
+        pdf_path=pdf_path, figure_instructions=figure_instructions, today=date.today().isoformat(), br="  "
+    )
 
     try:
         result = subprocess.run(
@@ -378,7 +398,7 @@ def find_paper_pdf(title: str) -> Path | None:
 def append_analysis_to_markdown(md_path: Path, analysis: str) -> None:
     """Append analysis to paper markdown, idempotently."""
     text = md_path.read_text(encoding="utf-8")
-    if IDEMPOTENCY_MARKER in text:
+    if any(marker in text for marker in IDEMPOTENCY_MARKERS):
         LOGGER.info(f"Skipping {md_path.name}: analysis already present")
         return
 
@@ -500,7 +520,7 @@ def process_paper(
         return f"Imported: {title}", commit_message
 
     # Check idempotency
-    if IDEMPOTENCY_MARKER in md_path.read_text(encoding="utf-8"):
+    if any(marker in md_path.read_text(encoding="utf-8") for marker in IDEMPOTENCY_MARKERS):
         return f"Already analyzed: {title}", commit_message
 
     pdf_path = find_paper_pdf(title)

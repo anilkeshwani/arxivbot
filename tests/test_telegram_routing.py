@@ -178,3 +178,10 @@ def test_run_item_logs_clip_failures_without_a_traceback(vault, caplog):
 
     assert run_item("https://e.com", job) == ("Error processing https://e.com: Defuddle failed: 403 Forbidden", False)
     assert not caplog.records[-1].exc_info
+
+
+def test_analysis_prompt_asks_for_the_vault_summary_header():
+    prompt = telegram_bot.ANALYSIS_PROMPT.format(pdf_path="p.pdf", figure_instructions="", today="2026-10-24", br="  ")
+    assert "## <Opinionated and Captivating Summary Title> <Model Name>" in prompt
+    assert "> [!info] #llm-generated/<your model ID, e.g. claude-opus-4-6>  \n> Date: 2026-10-24  \n" in prompt
+    assert "> Source: Claude Code CLI  \n" in prompt
