@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.5.1] - 2026-10-24
+
+### Fixed
+
+- `obsidian-clip` and the Telegram bot fetch pages with a browser User-Agent, so sites such as Medium that refuse Defuddle's default no longer fail with 403. Sites behind bot protection such as PerimeterX still do. ([#11](https://github.com/anilkeshwani/arxivbot/pull/11))
+- The Telegram bot logs a failed clip as one line instead of a traceback. ([#11](https://github.com/anilkeshwani/arxivbot/pull/11))
+
 ## [0.5.0] - 2026-10-24
 
 ### Added
@@ -34,4 +41,5 @@ All notable changes to this project are documented here. The format follows [Kee
 - Frontmatter strings are never wrapped across lines, and notes containing `---` in values or body text are parsed correctly.
 - `find_arxiv_links` matches 4-digit arXiv IDs.
 
+[0.5.1]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.4.1...v0.5.0
