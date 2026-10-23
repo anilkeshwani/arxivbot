@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.5.2] - 2026-10-24
+
+### Changed
+
+- The Telegram bot's Claude analysis follows the vault's paper summary format: an H2 title naming the paper's main claim and model, a `> [!info] #llm-generated/<model ID>` callout with date and source, then its six sections as H3. It also asks for results tables with ↑/↓ arrows, bolded key findings and `[[wikilinks]]` to papers already in `Papers/`. ([#12](https://github.com/anilkeshwani/arxivbot/pull/12))
+- A note that already carries an `#llm-generated/` summary, such as one written by hand, is not analyzed again. ([#12](https://github.com/anilkeshwani/arxivbot/pull/12))
+
 ## [0.5.1] - 2026-10-24
 
 ### Fixed
@@ -41,5 +48,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Frontmatter strings are never wrapped across lines, and notes containing `---` in values or body text are parsed correctly.
 - `find_arxiv_links` matches 4-digit arXiv IDs.
 
+[0.5.2]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.4.1...v0.5.0
