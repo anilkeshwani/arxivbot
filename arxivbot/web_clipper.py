@@ -26,7 +26,7 @@ _FILENAME_UNSAFE_RE = re.compile(r'[<>:"/\\|?*#^\[\]\x00-\x1f]')
 _MAX_FILENAME_BYTES = 240
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # Characters YAML forbids even in double-quoted scalars, which json.dumps leaves unescaped
-_YAML_UNSAFE_RE = re.compile("[\x7f-\x9f  ]")
+_YAML_UNSAFE_RE = re.compile("[\x7f-\x9f\u2028\u2029]")
 
 
 class ClipError(RuntimeError):
