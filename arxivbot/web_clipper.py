@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+from urllib.parse import urlsplit
 
 from arxivbot.constants import CLIPPINGS_DIR
 
@@ -25,6 +26,11 @@ _FILENAME_UNSAFE_RE = re.compile(r'[<>:"/\\|?*#^\[\]\x00-\x1f]')
 # In bytes, leaving room for a " N.md" suffix within the usual 255-byte filename limit
 _MAX_FILENAME_BYTES = 240
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_X_HOSTS = {"x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"}
+_X_POST_PATH_RE = re.compile(r"^/(\w{1,15})/status/(\d+)")
+_MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_TWEET_TITLE_CHARS = 80
 # Characters YAML forbids even in double-quoted scalars, which json.dumps leaves unescaped
 _YAML_UNSAFE_RE = re.compile("[\x7f-\x9f\u2028\u2029]")
 
@@ -69,9 +75,28 @@ def _yaml_str(value: str) -> str:
     return json.dumps(_YAML_UNSAFE_RE.sub("", value), ensure_ascii=False)
 
 
+def canonical_url(url: str) -> str:
+    """The URL a page is clipped and matched under: an X post loses twitter.com hosts and share suffixes like ?s=20."""
+    parts = urlsplit(url)
+    if parts.hostname in _X_HOSTS and (m := _X_POST_PATH_RE.match(parts.path)):
+        return f"https://x.com/{m.group(1)}/status/{m.group(2)}"
+    return url
+
+
+def _x_post_title(url: str, content: str) -> str | None:
+    """Title an X post "@handle on X: <opening words>", since Defuddle calls every post "Post by @handle on X"."""
+    m = _X_POST_PATH_RE.match(urlsplit(url).path)
+    words = " ".join(_MD_LINK_RE.sub(r"\1", _MD_IMAGE_RE.sub("", content)).split())
+    if not url.startswith("https://x.com/") or not m or not words:
+        return None
+    if len(words) > _TWEET_TITLE_CHARS:
+        words = words[:_TWEET_TITLE_CHARS].rsplit(" ", 1)[0] + "…"
+    return f"@{m.group(1)} on X: {words}"
+
+
 def build_clipping(url: str, page: dict, created: date) -> tuple[str, str]:
     """Build (title, note text) from Defuddle output, matching the Web Clipper's default frontmatter."""
-    title = (page.get("title") or "").strip() or url
+    title = _x_post_title(url, page.get("content") or "") or (page.get("title") or "").strip() or url
     authors = [a.strip() for a in (page.get("author") or "").split(",") if a.strip()]
     published = _DATE_RE.search(page.get("published") or "")
     description = (page.get("description") or "").strip()
@@ -97,6 +122,7 @@ def find_clipping(url: str, clippings_dir: Path) -> Path | None:
 
 def clip_url(url: str, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None) -> tuple[Path, bool]:
     """Clip url into clippings_dir. Returns (note path, created) where created is False if already clipped."""
+    url = canonical_url(url)
     if existing := find_clipping(url, clippings_dir):
         LOGGER.info(f"Already clipped: {existing}")
         return existing, False

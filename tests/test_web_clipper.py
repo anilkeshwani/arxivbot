@@ -96,3 +96,37 @@ def test_run_defuddle_sends_a_browser_user_agent(monkeypatch):
     with pytest.raises(ClipError, match="403 Forbidden"):
         web_clipper.run_defuddle(URL)
     assert calls[0][calls[0].index("--user-agent") + 1].startswith("Mozilla/5.0")
+
+
+POST = "https://x.com/karpathy/status/1886192184808149383"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (POST, POST),
+        ("https://twitter.com/karpathy/status/1886192184808149383?s=20&t=abc", POST),
+        ("https://mobile.x.com/karpathy/status/1886192184808149383/photo/1", POST),
+        ("https://x.com/AnthropicAI", "https://x.com/AnthropicAI"),
+        ("https://example.com/a?s=20", "https://example.com/a?s=20"),
+    ],
+)
+def test_canonical_url(url, expected):
+    assert web_clipper.canonical_url(url) == expected
+
+
+def test_x_post_clip_is_titled_with_its_opening_words_and_matched_across_hosts(tmp_path, monkeypatch):
+    content = (
+        '![photo](https://pbs.twimg.com/a.jpg) There\'s a new kind of coding I call "vibe coding", where you fully '
+        "give in to the [vibes](https://e.com), embrace exponentials, and forget that the code even exists."
+    )
+    page = {"title": "Post by @karpathy on X", "author": "@karpathy", "content": content}
+    monkeypatch.setattr(web_clipper, "run_defuddle", lambda url: page)
+
+    path, created = clip_url("https://twitter.com/karpathy/status/1886192184808149383?s=20", tmp_path)
+    title = '@karpathy on X: There\'s a new kind of coding I call "vibe coding", where you fully give in to…'
+    assert created and path.name == sanitize_clip_filename(title) + ".md"
+    assert f'source: "{POST}"' in path.read_text()
+
+    again, created = clip_url(POST, tmp_path)
+    assert not created and again == path

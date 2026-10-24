@@ -92,7 +92,7 @@ npm install -g defuddle
 obsidian-clip https://example.com/some-article [<url> ...]
 ```
 
-A URL that is already the `source` of a note in `Clippings/` is skipped. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
+A URL that is already the `source` of a note in `Clippings/` is skipped. X posts are saved under `https://x.com/<handle>/status/<id>` whichever host or share suffix the link had, and titled with the handle and the post's opening words. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
 
 ## Telegram bot
 
