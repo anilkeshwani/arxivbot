@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.5.3] - 2026-10-24
+
+### Changed
+
+- An X post is clipped under `https://x.com/<handle>/status/<id>`, so `twitter.com`, `mobile.x.com` and share-suffix links such as `?s=20` match the same note instead of creating duplicates. ([#13](https://github.com/anilkeshwani/arxivbot/pull/13))
+- An X post's clipping is titled `@handle on X: <opening words>` instead of Defuddle's `Post by @handle on X`, so notes for different posts by the same person get distinct names. ([#13](https://github.com/anilkeshwani/arxivbot/pull/13))
+
+### Fixed
+
+- The clipper's YAML-unsafe character pattern spells U+2028 and U+2029 as escapes instead of holding the invisible characters in the source. ([#13](https://github.com/anilkeshwani/arxivbot/pull/13))
+
 ## [0.5.2] - 2026-10-24
 
 ### Changed
@@ -48,6 +59,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Frontmatter strings are never wrapped across lines, and notes containing `---` in values or body text are parsed correctly.
 - `find_arxiv_links` matches 4-digit arXiv IDs.
 
+[0.5.3]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.4.1...v0.5.0
