@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.6.0] - 2026-10-25
+
+### Added
+
+- `arxivbot-telegram-setup`: checks the bot token, prints a link that adds the bot to a channel as an admin, finds the channel's chat ID from a test post and writes `~/.config/arxivbot/credentials.env` with private permissions. With `--service` it also writes a systemd user service whose `PATH` points at the programs the bot runs, and offers to enable it. ([#14](https://github.com/anilkeshwani/arxivbot/pull/14))
+- `docs/telegram-bot-setup.md`: the full setup guide, with the manual alternative and troubleshooting. ([#14](https://github.com/anilkeshwani/arxivbot/pull/14))
+
+### Removed
+
+- `deploy/arxivbot-telegram.service`, whose host-specific paths needed editing by hand. `arxivbot-telegram-setup --service` generates the unit for the host it runs on. ([#14](https://github.com/anilkeshwani/arxivbot/pull/14))
+
 ## [0.5.3] - 2026-10-24
 
 ### Changed
@@ -59,6 +70,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Frontmatter strings are never wrapped across lines, and notes containing `---` in values or body text are parsed correctly.
 - `find_arxiv_links` matches 4-digit arXiv IDs.
 
+[0.6.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.0...v0.5.1
