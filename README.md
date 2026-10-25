@@ -105,28 +105,13 @@ Each paper or page becomes its own commit in the vault, containing only the file
 
 ### Setup
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) (`/newbot`) and copy its token.
-2. Create a private channel and add the bot as an administrator that can post messages.
-3. Post anything in the channel, then read its chat ID (it starts with `-100`) from `channel_post.chat.id` at `https://api.telegram.org/bot<TOKEN>/getUpdates`. Do this before starting the bot, which consumes updates.
-4. Write the credentials file. `ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS` is comma-separated, and posts from any other chat are ignored.
+Create a bot with [@BotFather](https://t.me/BotFather) and a private channel, then on the host that holds the vault run:
 
-   ```bash
-   mkdir -p ~/.config/arxivbot && chmod 700 ~/.config/arxivbot
-   cat > ~/.config/arxivbot/credentials.env <<'EOF'
-   ARXIVBOT_TELEGRAM_BOT_TOKEN="123456:ABC..."
-   ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS="-1001234567890"
-   EOF
-   chmod 600 ~/.config/arxivbot/credentials.env
-   ```
+```bash
+OBSIDIAN_VAULT_DIR=~/journal arxivbot-telegram-setup --service
+```
 
-5. Run it on a host with a checkout of the vault that can `git push` unattended (an SSH key without a passphrase, or an HTTPS credential helper), either directly or as a systemd user service:
-
-   ```bash
-   cp deploy/arxivbot-telegram.service ~/.config/systemd/user/   # then adjust its paths to the host
-   systemctl --user daemon-reload
-   systemctl --user enable --now arxivbot-telegram
-   loginctl enable-linger "$USER"   # keep it running while logged out
-   ```
+It checks the token, prints a link that adds the bot to your channel as an admin, finds the channel's chat ID from a test post, writes `~/.config/arxivbot/credentials.env` and, with `--service`, installs a systemd user service. [docs/telegram-bot-setup.md](docs/telegram-bot-setup.md) walks through every step, the manual alternative and troubleshooting.
 
 ## Directory structure
 
@@ -144,11 +129,12 @@ Each paper or page becomes its own commit in the vault, containing only the file
 │   ├── obsidian_importer.py
 │   ├── s2_api.py
 │   ├── telegram_bot.py
+│   ├── telegram_setup.py
 │   ├── web_clipper.py
 │   └── utils.py
 ├── credentials_template.env
-├── deploy/
-│   └── arxivbot-telegram.service
+├── docs/
+│   └── telegram-bot-setup.md
 ├── plans/
 │   ├── additional_features.md
 │   ├── ai_summary_generation.md
