@@ -1,11 +1,12 @@
 from datetime import date
+from pathlib import Path
 import subprocess
 
 import pytest
 import yaml
 
 from arxivbot import web_clipper
-from arxivbot.web_clipper import ClipError, build_clipping, clip_url, sanitize_clip_filename
+from arxivbot.web_clipper import ClipError, build_clipping, clip_file, clip_html, clip_url, sanitize_clip_filename
 
 
 URL = "https://www.speechmatics.com/company/articles-and-news/meet-oak"
@@ -130,3 +131,54 @@ def test_x_post_clip_is_titled_with_its_opening_words_and_matched_across_hosts(t
 
     again, created = clip_url(POST, tmp_path)
     assert not created and again == path
+
+
+SAVED_PAGE = """<!doctype html><html><head><title>Quant | FT</title>
+<link href="https://www.ft.com/content/bc6bba42" rel="canonical"></head><body>...</body></html>"""
+
+
+def test_clip_html_uses_the_page_url_and_resolves_relative_links(tmp_path, monkeypatch):
+    seen = {}
+
+    def defuddle(source):
+        seen["html"] = Path(source).read_text()
+        return {"title": "The reclusive quant", "content": "Body"}
+
+    monkeypatch.setattr(web_clipper, "run_defuddle", defuddle)
+    page = tmp_path / "saved.html"
+    page.write_text(SAVED_PAGE)
+    clippings = tmp_path / "Clippings"
+
+    path, created = clip_html(page, "https://giftarticle.ft.com/redeem/abc", clippings)
+    assert created and path == clippings / "The reclusive quant.md"
+    assert 'source: "https://www.ft.com/content/bc6bba42"' in path.read_text()
+    assert '<head><base href="https://www.ft.com/content/bc6bba42"><title>' in seen["html"]
+    assert clip_html(page, None, clippings) == (path, False)
+
+
+def test_clip_html_falls_back_to_the_given_url_and_needs_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(web_clipper, "run_defuddle", lambda source: {"title": "T", "content": "Body"})
+    page = tmp_path / "saved.html"
+    page.write_text("<p>no head, no canonical</p>")
+    with pytest.raises(ClipError, match="does not name its URL"):
+        clip_html(page, None, tmp_path)
+    path, _ = clip_html(page, "https://e.com/a", tmp_path)
+    assert 'source: "https://e.com/a"' in path.read_text()
+
+
+def test_clip_markdown_saves_web_clipper_notes_unchanged_and_once(tmp_path):
+    note = '---\ntitle: "Quant"\nsource: "https://www.ft.com/content/bc6bba42?accessToken=x"\n---\nBody\n'
+    upload = tmp_path / "upload" / "The reclusive quant: coming into the light.md"
+    upload.parent.mkdir()
+    upload.write_text(note)
+    clippings = tmp_path / "Clippings"
+
+    path, created = clip_file(upload, None, clippings)
+    assert created and path == clippings / "The reclusive quant coming into the light.md"
+    assert path.read_text() == note
+    assert clip_file(upload, None, clippings) == (path, False)
+
+
+def test_clip_file_rejects_other_files(tmp_path):
+    with pytest.raises(ClipError, match="send a .html page or a .md note"):
+        clip_file(tmp_path / "paper.pdf")

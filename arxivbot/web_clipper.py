@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 from datetime import date
+import html as html_lib
 import json
 import logging
 from pathlib import Path
@@ -31,6 +32,13 @@ _X_POST_PATH_RE = re.compile(r"^/(\w{1,15})/status/(\d+)")
 _MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _TWEET_TITLE_CHARS = 80
+# A saved page's own URL, from its canonical link or og:url tag
+_PAGE_URL_TAG_RE = re.compile(
+    r"<link[^>]+rel=[\"']canonical[\"'][^>]*>|<meta[^>]+property=[\"']og:url[\"'][^>]*>", re.I
+)
+_URL_ATTR_RE = re.compile(r"(?:href|content)=[\"'](https?://[^\"']+)[\"']", re.I)
+_SOURCE_RE = re.compile(r'^source: ("(?:[^"\\]|\\.)*")$', re.M)
+CLIP_FILE_SUFFIXES = {".md": "markdown", ".markdown": "markdown", ".html": "html", ".htm": "html"}
 # Characters YAML forbids even in double-quoted scalars, which json.dumps leaves unescaped
 _YAML_UNSAFE_RE = re.compile("[\x7f-\x9f\u2028\u2029]")
 
@@ -39,14 +47,14 @@ class ClipError(RuntimeError):
     pass
 
 
-def run_defuddle(url: str) -> dict:
-    """Fetch and extract a page with the Defuddle CLI (the Web Clipper's extractor). Returns its JSON output."""
+def run_defuddle(source: str) -> dict:
+    """Extract a page, from a URL or a saved HTML file, with the Defuddle CLI (the Web Clipper's extractor)."""
     # Output goes via a file: the CLI exits before flushing a piped stdout, truncating long pages at 64 KiB
     with tempfile.TemporaryDirectory(prefix="arxivbot_clip_") as tmp_dir:
         out_path = Path(tmp_dir) / "page.json"
         try:
             result = subprocess.run(
-                ["defuddle", "parse", url, "--json", "--markdown", "--output", str(out_path)]
+                ["defuddle", "parse", source, "--json", "--markdown", "--output", str(out_path)]
                 + ["--user-agent", USER_AGENT],
                 capture_output=True,
                 text=True,
@@ -120,43 +128,107 @@ def find_clipping(url: str, clippings_dir: Path) -> Path | None:
     return None
 
 
-def clip_url(url: str, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None) -> tuple[Path, bool]:
-    """Clip url into clippings_dir. Returns (note path, created) where created is False if already clipped."""
-    url = canonical_url(url)
-    if existing := find_clipping(url, clippings_dir):
-        LOGGER.info(f"Already clipped: {existing}")
-        return existing, False
-
-    page = run_defuddle(url)
-    if not (page.get("content") or "").strip():
-        raise ClipError("Defuddle extracted no content (page may need JavaScript or a login)")
-    title, note = build_clipping(url, page, today or date.today())
-
-    stem = sanitize_clip_filename(title)
+def _new_note_path(clippings_dir: Path, stem: str) -> Path:
     note_path = clippings_dir / f"{stem}.md"
     n = 1
     while note_path.exists():
         n += 1
         note_path = clippings_dir / f"{stem} {n}.md"
+    return note_path
 
-    clippings_dir.mkdir(exist_ok=True)
+
+def _save(note_path: Path, note: str) -> tuple[Path, bool]:
+    note_path.parent.mkdir(exist_ok=True)
     note_path.write_text(note, encoding="utf-8")
     LOGGER.info(f"Clipped: {note_path}")
     return note_path, True
 
 
+def _save_page(url: str, page: dict, clippings_dir: Path, today: date | None) -> tuple[Path, bool]:
+    if not (page.get("content") or "").strip():
+        raise ClipError("Defuddle extracted no content (page may need JavaScript or a login)")
+    title, note = build_clipping(url, page, today or date.today())
+    return _save(_new_note_path(clippings_dir, sanitize_clip_filename(title)), note)
+
+
+def _already_clipped(url: str, clippings_dir: Path) -> Path | None:
+    if existing := find_clipping(url, clippings_dir):
+        LOGGER.info(f"Already clipped: {existing}")
+    return existing
+
+
+def clip_url(url: str, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None) -> tuple[Path, bool]:
+    """Clip url into clippings_dir. Returns (note path, created) where created is False if already clipped."""
+    url = canonical_url(url)
+    if existing := _already_clipped(url, clippings_dir):
+        return existing, False
+    return _save_page(url, run_defuddle(url), clippings_dir, today)
+
+
+def _page_url(html: str) -> str | None:
+    for tag in _PAGE_URL_TAG_RE.findall(html):
+        if m := _URL_ATTR_RE.search(tag):
+            return html_lib.unescape(m.group(1))
+    return None
+
+
+def clip_html(
+    html_path: Path, url: str | None = None, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None
+) -> tuple[Path, bool]:
+    """Clip a page saved from a browser, for pages only a logged-in browser can load.
+
+    The source is the page's canonical URL, falling back to url when the page names none.
+    """
+    html = html_path.read_text(encoding="utf-8", errors="replace")
+    if not (url := _page_url(html) or url):
+        raise ClipError("The saved page does not name its URL. Send its link along with the file.")
+    url = canonical_url(url)
+    if existing := _already_clipped(url, clippings_dir):
+        return existing, False
+
+    # Defuddle resolves a saved page's relative links and images against its <base>
+    base = f'<base href="{html_lib.escape(url)}">'
+    based, n = re.subn(r"<head\b[^>]*>", lambda m: m.group(0) + base, html, count=1, flags=re.I)
+    with tempfile.TemporaryDirectory(prefix="arxivbot_page_") as tmp_dir:
+        page_path = Path(tmp_dir) / "page.html"
+        page_path.write_text(based if n else base + html, encoding="utf-8")
+        return _save_page(url, run_defuddle(str(page_path)), clippings_dir, today)
+
+
+def clip_markdown(md_path: Path, clippings_dir: Path = CLIPPINGS_DIR) -> tuple[Path, bool]:
+    """Save a note the Web Clipper exported as a file, unchanged, unless a note with its source exists."""
+    note = md_path.read_text(encoding="utf-8")
+    if (m := _SOURCE_RE.search(note[:4096])) and (existing := _already_clipped(json.loads(m.group(1)), clippings_dir)):
+        return existing, False
+    return _save(_new_note_path(clippings_dir, sanitize_clip_filename(md_path.stem)), note)
+
+
+def clip_file(path: Path, url: str | None = None, clippings_dir: Path = CLIPPINGS_DIR) -> tuple[Path, bool]:
+    """Clip a saved .html page or a Web Clipper .md note."""
+    kind = CLIP_FILE_SUFFIXES.get(path.suffix.lower())
+    if kind == "markdown":
+        return clip_markdown(path, clippings_dir)
+    if kind == "html":
+        return clip_html(path, url, clippings_dir)
+    raise ClipError(f"Cannot clip {path.name}: send a .html page or a .md note from the Web Clipper")
+
+
 def main() -> None:
     parser = ArgumentParser(description="Clip web pages into the Obsidian vault's Clippings/ folder")
-    parser.add_argument("urls", nargs="+", help="Page URLs to clip")
+    parser.add_argument("sources", nargs="+", help="Page URLs, pages saved as .html, or Web Clipper .md notes")
+    parser.add_argument("--url", help="Source URL for a saved .html page that does not name its own")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     failed = False
-    for url in args.urls:
+    for source in args.sources:
         try:
-            clip_url(url)
+            if Path(source).is_file():
+                clip_file(Path(source), args.url)
+            else:
+                clip_url(source)
         except (ClipError, OSError) as e:
-            LOGGER.error(f"Failed to clip {url}: {e}")
+            LOGGER.error(f"Failed to clip {source}: {e}")
             failed = True
     raise SystemExit(1 if failed else 0)
 
