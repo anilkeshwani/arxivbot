@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.7.0] - 2026-10-27
+
+### Added
+
+- Clipping pages the server cannot load, such as paywalled articles, gift links and sites behind bot checks, from what your browser loaded. ([#15](https://github.com/anilkeshwani/arxivbot/pull/15))
+  - The Telegram bot accepts a `.html` page saved from the browser or a `.md` note saved from the Obsidian Web Clipper, posted as a file. A link in the caption is the page's URL when the page names none.
+  - `obsidian-clip` accepts the same files, with `--url` for a saved page without a canonical URL.
+  - A saved page's source is its canonical URL, and its relative links and images resolve against it. A Web Clipper note is saved unchanged. Either is skipped when its source is already clipped.
+
 ## [0.6.0] - 2026-10-26
 
 ### Added
@@ -70,6 +79,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Frontmatter strings are never wrapped across lines, and notes containing `---` in values or body text are parsed correctly.
 - `find_arxiv_links` matches 4-digit arXiv IDs.
 
+[0.7.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/anilkeshwani/arxivbot/compare/v0.5.1...v0.5.2
