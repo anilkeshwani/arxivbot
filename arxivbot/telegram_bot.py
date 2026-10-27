@@ -22,7 +22,7 @@ from arxivbot.constants import CLIPPINGS_DIR, DB_PATH, OBSIDIAN_VAULT_DIR, PAPER
 from arxivbot.database import get_paper_title, init_db
 from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, extract_dois, parse_paper_id
 from arxivbot.obsidian_importer import _query_id_fields
-from arxivbot.web_clipper import ClipError, clip_url
+from arxivbot.web_clipper import ClipError, clip_file, clip_url
 
 
 LOGGER = logging.getLogger(__name__)
@@ -473,12 +473,34 @@ def analysis_enabled() -> bool:
     return os.environ.get("ARXIVBOT_TELEGRAM_ANALYZE", "1") != "0"
 
 
-def clip_page(url: str) -> tuple[str, str | None]:
-    """Clip a web page. Returns (status, commit message or None if nothing was written)."""
-    note_path, created = clip_url(url)
+def _clip_result(note_path: Path, created: bool) -> tuple[str, str | None]:
     if not created:
         return f"Already clipped: {note_path.stem}", None
     return f"Clipped: {note_path.stem}", f'Clip "{note_path.stem}" via Telegram'
+
+
+def clip_page(url: str) -> tuple[str, str | None]:
+    """Clip a web page. Returns (status, commit message or None if nothing was written)."""
+    return _clip_result(*clip_url(url))
+
+
+def clip_document(token: str, document: dict, url: str | None) -> tuple[str, str | None]:
+    """Clip a page saved as .html, or a Web Clipper .md note, posted as a file.
+
+    This covers pages only a logged-in browser can load. Returns (status, commit message or None).
+    """
+    name = Path(document.get("file_name") or "page.html").name
+    try:
+        file_path = telegram_api(token, "getFile", json={"file_id": document["file_id"]})["result"]["file_path"]
+        resp = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}", timeout=60)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        # The request URL holds the bot token, so the error is not passed on
+        raise ClipError(f"Could not download {name} from Telegram (bots can fetch files up to 20 MB)") from e
+    with tempfile.TemporaryDirectory(prefix="arxivbot_file_") as tmp_dir:
+        path = Path(tmp_dir) / name
+        path.write_bytes(resp.content)
+        return _clip_result(*clip_file(path, url))
 
 
 def process_paper(
@@ -656,17 +678,23 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
             "- Semantic Scholar URL\n"
             "- Hugging Face / alphaXiv paper pages\n\n"
             "A paper link that cannot be imported is clipped instead. "
-            "You can send several links in one message.",
+            "You can send several links in one message.\n\n"
+            "For a page that needs your login, send it as a file instead: a .html page saved from the browser, "
+            "or a .md note saved from the Obsidian Web Clipper.",
             reply_to=message_id,
         )
         return
 
-    papers, clip_urls = route_message(message)
-    if not papers and not clip_urls:
-        return  # Silently ignore messages without links or paper IDs
-
-    jobs = [(pid, partial(process_paper, pid, url, token, chat_id, message_id)) for pid, url in papers]
-    jobs += [(url, partial(clip_page, url)) for url in clip_urls]
+    if document := message.get("document"):
+        # A file is clipped on its own; a link in its caption is the page's URL
+        links, _ = extract_links(message)
+        jobs = [(document.get("file_name") or "file", partial(clip_document, token, document, next(iter(links), None)))]
+    else:
+        papers, clip_urls = route_message(message)
+        if not papers and not clip_urls:
+            return  # Silently ignore messages without links or paper IDs
+        jobs = [(pid, partial(process_paper, pid, url, token, chat_id, message_id)) for pid, url in papers]
+        jobs += [(url, partial(clip_page, url)) for url in clip_urls]
     processing_msg_id = send_message(token, chat_id, f"Processing {len(jobs)} item(s)...", reply_to=message_id)
 
     # One commit per paper or page keeps the vault history atomic; a single push at the end

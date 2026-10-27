@@ -185,3 +185,44 @@ def test_analysis_prompt_asks_for_the_vault_summary_header():
     assert "## <Opinionated and Captivating Summary Title> <Model Name>" in prompt
     assert "> [!info] #llm-generated/<your model ID, e.g. claude-opus-4-6>  \n> Date: 2026-10-24  \n" in prompt
     assert "> Source: Claude Code CLI  \n" in prompt
+
+
+def test_a_posted_file_is_downloaded_and_clipped_with_the_caption_link(vault, monkeypatch):
+    sent = []
+    monkeypatch.setattr(telegram_bot, "send_message", lambda *a, **kw: sent.append(a[2]) or 9)
+    monkeypatch.setattr(telegram_bot, "edit_message", lambda token, chat, msg, text: sent.append(text))
+    monkeypatch.setattr(telegram_bot, "git_push", lambda: True)
+    monkeypatch.setattr(telegram_bot, "telegram_api", lambda token, method, **kw: {"result": {"file_path": "d/1.html"}})
+    monkeypatch.setattr(
+        telegram_bot.requests,
+        "get",
+        lambda url, **kw: type("R", (), {"content": b"<p>x</p>", "raise_for_status": lambda s: None})(),
+    )
+    calls = []
+
+    def clip_file(path, url):
+        calls.append((path.name, path.read_bytes(), url))
+        note = vault / "Clippings" / "Quant.md"
+        note.write_text("note")
+        return note, True
+
+    monkeypatch.setattr(telegram_bot, "clip_file", clip_file)
+    post = _post("https://giftarticle.ft.com/redeem/abc")
+    post.update(chat={"id": 1}, message_id=5, caption=post.pop("text"), caption_entities=post.pop("entities"))
+    post["document"] = {"file_id": "f1", "file_name": "The quant.html"}
+
+    telegram_bot.handle_message("tok", {1}, post)
+
+    assert calls == [("The quant.html", b"<p>x</p>", "https://giftarticle.ft.com/redeem/abc")]
+    assert sent == ["Processing 1 item(s)...", "Clipped: Quant"]
+    assert _committed_files(vault) == {"Clippings/Quant.md"}
+
+
+def test_a_failed_file_download_does_not_reveal_the_token(monkeypatch):
+    def api(token, method, **kw):
+        raise telegram_bot.requests.HTTPError(f"400 for url: https://api.telegram.org/bot{token}/getFile")
+
+    monkeypatch.setattr(telegram_bot, "telegram_api", api)
+    with pytest.raises(telegram_bot.ClipError) as info:
+        telegram_bot.clip_document("SECRET", {"file_id": "f", "file_name": "big.html"}, None)
+    assert "SECRET" not in str(info.value)
