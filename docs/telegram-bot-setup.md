@@ -101,7 +101,20 @@ Upgrade with `uv tool install --reinstall git+https://github.com/anilkeshwani/ar
 - **Papers**, imported with `obsidian-import`: arXiv links and IDs, DOIs and publisher links containing one, Semantic Scholar links, and Hugging Face and alphaXiv paper pages. A paper link that neither Semantic Scholar nor arXiv knows is clipped instead.
 - **Everything else**, clipped as by `obsidian-clip`. X posts are titled with the handle and the post's opening words, and saved under one `x.com` URL whichever form the link had.
 
-One post can hold several links; each becomes its own commit, and the post ends with one push.
+One post can hold several links; each becomes its own commit, and the post ends with one push. A `.html` or `.md` file is clipped as described in [Pages that need your login](#pages-that-need-your-login).
+
+## Pages that need your login
+
+Some pages cannot be fetched from the server: paywalled articles (including gift links, such as the FT's), pages behind a login, and sites whose bot checks block requests that do not come from a real browser. Your own browser can load them, so send the bot the page your browser loaded, as a file:
+
+- **A note from the Obsidian Web Clipper.** Clip the page as usual, but save it as a file from the clipper's menu instead of adding it to Obsidian, then send the `.md` file to the channel. The bot saves it to `Clippings/` unchanged, so it matches clips made straight into the vault.
+- **The page itself.** Save it from the browser with **Save Page As** > **Webpage, HTML Only** (Firefox: **Web Page, HTML only**), then send the `.html` file. The bot extracts it with Defuddle like any other page. The note's `source` is the page's canonical URL; for a page that names none, put its link in the file's caption.
+
+Either way the server never contacts the site: it only processes what your browser loaded. A file whose `source` is already in `Clippings/` is skipped. Bots can download files up to 20 MB.
+
+The same works from a shell with `obsidian-clip saved-page.html` or `obsidian-clip note.md` (`--url` gives a saved page without a canonical URL its source).
+
+When the vault is open on the same machine as the browser, clipping with the Web Clipper directly into the vault is simpler still.
 
 ## Troubleshooting
 
@@ -111,5 +124,6 @@ One post can hold several links; each becomes its own commit, and the post ends 
 | `409 Conflict` in the log | Two copies are polling the same bot, for example a foreground run and the service. Stop one. |
 | `Committed locally but git push failed` | The push could not authenticate or hit a conflict it could not rebase. Run the check in step 4 and `git -C ~/journal status`. The commits are kept and go out with the next successful push. |
 | `Defuddle CLI not found` or `obsidian-import: not found` | The service's `PATH` does not reach the program. Rerun `arxivbot-telegram-setup --service` from a shell where `command -v defuddle` works. |
-| `Defuddle failed: ... 403 Forbidden` | The site blocks requests that do not come from a real browser (bot protection such as PerimeterX). Clip it with the Obsidian Web Clipper instead. |
-| `Defuddle extracted no content` | The page needs JavaScript or a login to show its text. Use the Web Clipper. |
+| `Defuddle failed: ... 403 Forbidden` | The site blocks requests that do not come from a real browser (bot protection such as PerimeterX or a Cloudflare check). Send the page as a file instead (see [Pages that need your login](#pages-that-need-your-login)). |
+| `Defuddle extracted no content` | The page needs JavaScript or a login to show its text. Send it as a Web Clipper `.md` file. |
+| `The saved page does not name its URL` | The `.html` file has no canonical link. Send it again with the page's link as the caption. |
