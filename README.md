@@ -92,14 +92,14 @@ npm install -g defuddle
 obsidian-clip https://example.com/some-article [<url> ...]
 ```
 
-A URL that is already the `source` of a note in `Clippings/` is skipped. X posts are saved under `https://x.com/<handle>/status/<id>` whichever host or share suffix the link had, and titled with the handle and the post's opening words. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
+For pages the server cannot load (paywalls, logins, bot checks), pass a page saved from your browser as `.html`, or a note saved from the Web Clipper as `.md`: `obsidian-clip saved-page.html`. A URL that is already the `source` of a note in `Clippings/` is skipped. X posts are saved under `https://x.com/<handle>/status/<id>` whichever host or share suffix the link had, and titled with the handle and the post's opening words. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
 
 ## Telegram bot
 
 `arxivbot-telegram` watches a Telegram chat or channel and routes every link or identifier posted to it:
 
 - **Papers** (arXiv URLs and IDs, DOIs and publisher links containing one, Semantic Scholar URLs, Hugging Face and alphaXiv paper pages) are imported as by `obsidian-import`. A paper link that cannot be found is clipped instead.
-- **Any other link** is clipped as by `obsidian-clip`.
+- **Any other link** is clipped as by `obsidian-clip`, and so is a `.html` page or Web Clipper `.md` note sent as a file.
 
 Each paper or page becomes its own commit in the vault, containing only the files it wrote, and each post ends with one push. By default every imported paper is also analyzed with `claude -p` and the analysis appended to its note; set `ARXIVBOT_TELEGRAM_ANALYZE=0` to only import (PDFs are then not downloaded either).
 
