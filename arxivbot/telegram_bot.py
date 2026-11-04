@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -9,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import date
 from functools import partial
 from pathlib import Path
@@ -18,20 +20,44 @@ import fitz  # PyMuPDF
 import requests
 from dotenv import load_dotenv
 
-from arxivbot.constants import CLIPPINGS_DIR, DB_PATH, OBSIDIAN_VAULT_DIR, PAPERS_DIR, PDFS_DIR
+from arxivbot.clip_queue import ClipQueue
+from arxivbot.constants import (
+    CLIP_QUEUE_NOTE,
+    CLIP_QUEUE_PATH,
+    CLIPPINGS_DIR,
+    DB_PATH,
+    OBSIDIAN_VAULT_DIR,
+    PAPERS_DIR,
+    PDFS_DIR,
+)
 from arxivbot.database import get_paper_title, init_db
 from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, extract_dois, parse_paper_id
 from arxivbot.obsidian_importer import _query_id_fields
-from arxivbot.web_clipper import ClipError, clip_file, clip_url
+from arxivbot.web_clipper import (
+    USER_AGENT,
+    ClipError,
+    NeedsBrowserError,
+    canonical_url,
+    clip_file,
+    clip_url,
+    clip_wayback,
+    clipping_source,
+)
 
 
 LOGGER = logging.getLogger(__name__)
 
 CREDENTIALS_PATH = Path("~/.config/arxivbot/credentials.env").expanduser()
+# Which message in each chat lists the clip queue; Telegram state, so kept out of the vault
+QUEUE_MESSAGES_PATH = (
+    Path(os.environ.get("XDG_STATE_HOME", "~/.local/state")).expanduser() / "arxivbot/queue-messages.json"
+)
 
 # Vault paths the bot writes to and commits (PDFs/ is not committed)
-VAULT_WRITE_PATHS = (PAPERS_DIR, DB_PATH, CLIPPINGS_DIR)
+VAULT_WRITE_PATHS = (PAPERS_DIR, DB_PATH, CLIPPINGS_DIR, CLIP_QUEUE_PATH, CLIP_QUEUE_NOTE)
 GIT_TIMEOUT = 120
+# How often the vault is pulled to take pages clipped elsewhere off the clip queue
+QUEUE_REFRESH_SECONDS = 3600
 
 # Sites whose URLs carry a bare arXiv ID for a paper page, e.g. https://huggingface.co/papers/2408.16532
 ARXIV_MIRROR_HOSTS = {"huggingface.co", "alphaxiv.org", "www.alphaxiv.org", "arxiv-sanity-lite.com"}
@@ -451,6 +477,17 @@ def git_commit(paths: list[Path], message: str) -> bool:
         return False
 
 
+def git_pull() -> bool:
+    try:
+        _git("pull", "--rebase", "--autostash")
+        return True
+    except subprocess.SubprocessError as e:
+        LOGGER.error(f"git pull failed: {_git_error(e)}")
+        # Never leave the vault mid-rebase, where later commits would land on a detached HEAD
+        subprocess.run(["git", "rebase", "--abort"], cwd=str(OBSIDIAN_VAULT_DIR), capture_output=True)
+        return False
+
+
 def git_push() -> bool:
     """Push, rebasing onto the remote first if it has moved on."""
     try:
@@ -458,14 +495,13 @@ def git_push() -> bool:
         return True
     except subprocess.SubprocessError:
         LOGGER.info("Push rejected, rebasing onto remote and retrying")
+    if not git_pull():
+        return False
     try:
-        _git("pull", "--rebase", "--autostash")
         _git("push")
         return True
     except subprocess.SubprocessError as e:
         LOGGER.error(f"git push failed: {_git_error(e)}")
-        # Never leave the vault mid-rebase, where later commits would land on a detached HEAD
-        subprocess.run(["git", "rebase", "--abort"], cwd=str(OBSIDIAN_VAULT_DIR), capture_output=True)
         return False
 
 
@@ -473,15 +509,44 @@ def analysis_enabled() -> bool:
     return os.environ.get("ARXIVBOT_TELEGRAM_ANALYZE", "1") != "0"
 
 
-def _clip_result(note_path: Path, created: bool) -> tuple[str, str | None]:
+def _clip_result(note_path: Path, created: bool, via: str = "") -> tuple[str, str | None]:
+    # A queued page leaves the queue in the commit that clips it, such as from a file posted later
+    queue = ClipQueue()
+    if (source := clipping_source(note_path)) and queue.remove(source):
+        queue.save()
     if not created:
         return f"Already clipped: {note_path.stem}", None
-    return f"Clipped: {note_path.stem}", f'Clip "{note_path.stem}" via Telegram'
+    return f"Clipped{via}: {note_path.stem}", f'Clip "{note_path.stem}" via Telegram{via}'
+
+
+def final_url(url: str) -> str:
+    """Where url redirects to, such as the article a gift link opens, even if the site then refuses the server."""
+    try:
+        with requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30, stream=True) as resp:
+            return resp.url
+    except requests.RequestException:
+        return url
 
 
 def clip_page(url: str) -> tuple[str, str | None]:
-    """Clip a web page. Returns (status, commit message or None if nothing was written)."""
-    return _clip_result(*clip_url(url))
+    """Clip a web page. Returns (status, commit message or None if nothing was written).
+
+    A page the server cannot get is clipped from a Wayback Machine snapshot taken today, or else queued to be
+    clipped by hand.
+    """
+    try:
+        return _clip_result(*clip_url(url, wayback=False))
+    except NeedsBrowserError as e:
+        reason = e.reason
+    if clipped := clip_wayback(canonical_url(url), CLIPPINGS_DIR, date.today()):
+        return _clip_result(*clipped, via=" from a Wayback Machine snapshot")
+
+    queue = ClipQueue()
+    if not queue.add(url, reason, date.today(), final_url(url)):
+        return f"Already in the clip queue: {url}", None
+    queue.save()
+    status = f"Could not get {url} ({reason}), and the Wayback Machine has no copy from today."
+    return f"{status} Added to the clip queue ({len(queue)} waiting).", f'Queue "{url}" for clipping by hand'
 
 
 def clip_document(token: str, document: dict, url: str | None) -> tuple[str, str | None]:
@@ -603,6 +668,85 @@ def run_item(label: str, job) -> tuple[str, bool]:
     return f"{status} (not committed, see the bot log)", False
 
 
+# --- Clip queue ---
+
+
+def queue_text(queue: ClipQueue) -> str:
+    if not queue:
+        return "Clip queue: nothing to clip."
+    lines = [f"Clip queue: {len(queue)} page(s) to clip from your browser with the Web Clipper"]
+    lines += [
+        f"{i}. {page['url']} ({page['reason']}, posted {page['posted']})" for i, page in enumerate(queue.pages, 1)
+    ]
+    lines.append("Each one leaves the list once clipped. /done <number> drops one.")
+    text = "\n".join(lines)
+    return text if len(text) <= 4096 else text[:4000] + "\n... (the full list is in the vault's Clip Queue note)"
+
+
+def _load_queue_messages() -> dict[str, int]:
+    try:
+        return json.loads(QUEUE_MESSAGES_PATH.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def show_queue(token: str, chat_ids: set[int]) -> None:
+    """Bring each chat's pinned clip queue message up to date, posting and pinning it the first time."""
+    text, messages = queue_text(ClipQueue()), _load_queue_messages()
+    for chat_id in chat_ids:
+        if message_id := messages.get(str(chat_id)):
+            try:
+                telegram_api(
+                    token, "editMessageText", json={"chat_id": chat_id, "message_id": message_id, "text": text}
+                )
+                continue
+            except requests.HTTPError as e:
+                if "message is not modified" in e.response.text:
+                    continue
+                LOGGER.info(f"Clip queue message {message_id} cannot be edited, posting a new one")
+        try:
+            messages[str(chat_id)] = send_message(token, chat_id, text)
+            telegram_api(
+                token,
+                "pinChatMessage",
+                json={"chat_id": chat_id, "message_id": messages[str(chat_id)], "disable_notification": True},
+            )
+        except requests.RequestException as e:
+            LOGGER.warning(f"Could not post or pin the clip queue in {chat_id} (pinning needs Edit Messages): {e}")
+    QUEUE_MESSAGES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    QUEUE_MESSAGES_PATH.write_text(json.dumps(messages))
+
+
+def commit_queue(message: str) -> bool:
+    return git_commit([path for path in (CLIP_QUEUE_PATH, CLIP_QUEUE_NOTE) if path.exists()], message) and git_push()
+
+
+def refresh_queue(token: str, chat_ids: set[int]) -> None:
+    """Pull the vault and take pages clipped elsewhere, such as with the Web Clipper, off the clip queue."""
+    if not ClipQueue() or not git_pull():
+        return
+    queue = ClipQueue()
+    if removed := queue.remove_clipped(CLIPPINGS_DIR):
+        queue.save()
+        commit_queue(f"Take {len(removed)} clipped page(s) off the clip queue")
+        show_queue(token, chat_ids)
+
+
+def drop_from_queue(arg: str) -> str:
+    """Handle /done <number or link>. Returns the reply."""
+    queue = ClipQueue()
+    if arg.isdigit() and 1 <= int(arg) <= len(queue):
+        removed = queue.remove(queue.pages[int(arg) - 1]["url"])
+    else:
+        removed = queue.remove(arg) if arg else []
+    if not removed:
+        return f"No page {arg or '(give a number or link)'} in the clip queue.\n\n{queue_text(queue)}"
+    queue.save()
+    url = removed[0]["url"]
+    pushed = commit_queue(f'Drop "{url}" from the clip queue')
+    return f"Dropped {url} from the clip queue." + ("" if pushed else " (not pushed, see the bot log)")
+
+
 # --- Credential loading and validation ---
 
 
@@ -621,8 +765,7 @@ def load_credentials() -> tuple[str, set[int]]:
     file_mode = CREDENTIALS_PATH.stat().st_mode
     if file_mode & (stat.S_IRGRP | stat.S_IROTH):
         LOGGER.warning(
-            f"Credentials file {CREDENTIALS_PATH} is readable by group/others. "
-            f"Fix with: chmod 600 {CREDENTIALS_PATH}"
+            f"Credentials file {CREDENTIALS_PATH} is readable by group/others. Fix with: chmod 600 {CREDENTIALS_PATH}"
         )
 
     load_dotenv(CREDENTIALS_PATH)
@@ -661,9 +804,17 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
 
     if chat_id not in allowed_chat_ids:
         return
+    command, arg = m.groups() if (m := re.match(r"/(\w+)(?:@\w+)?\s*(.*)", text.strip(), re.S)) else ("", "")
 
-    # Handle /help
-    if text.strip().startswith("/help"):
+    if command == "pending":
+        refresh_queue(token, allowed_chat_ids)
+        send_message(token, chat_id, queue_text(ClipQueue()), reply_to=message_id)
+        return
+    if command == "done":
+        send_message(token, chat_id, drop_from_queue(arg.strip()), reply_to=message_id)
+        show_queue(token, allowed_chat_ids)
+        return
+    if command == "help":
         send_message(
             token,
             chat_id,
@@ -680,7 +831,12 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
             "A paper link that cannot be imported is clipped instead. "
             "You can send several links in one message.\n\n"
             "For a page that needs your login, send it as a file instead: a .html page saved from the browser, "
-            "or a .md note saved from the Obsidian Web Clipper.",
+            "or a .md note saved from the Obsidian Web Clipper.\n\n"
+            "A page I cannot get is clipped from a Wayback Machine snapshot taken today, if there is one, and "
+            "otherwise added to the clip queue, pinned here and in the vault's Clip Queue note. Clip it from your "
+            "browser and it leaves the queue.\n"
+            "/pending lists the queue\n"
+            "/done <number> drops a page from it",
             reply_to=message_id,
         )
         return
@@ -696,6 +852,8 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
         jobs = [(pid, partial(process_paper, pid, url, token, chat_id, message_id)) for pid, url in papers]
         jobs += [(url, partial(clip_page, url)) for url in clip_urls]
     processing_msg_id = send_message(token, chat_id, f"Processing {len(jobs)} item(s)...", reply_to=message_id)
+    refresh_queue(token, allowed_chat_ids)
+    queued_before = ClipQueue().pages
 
     # One commit per paper or page keeps the vault history atomic; a single push at the end
     results = []
@@ -709,6 +867,8 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
         results.append("Committed locally but git push failed, see the bot log")
 
     edit_message(token, chat_id, processing_msg_id, "\n".join(results)[:4096])
+    if ClipQueue().pages != queued_before:
+        show_queue(token, allowed_chat_ids)
 
 
 def main() -> None:
@@ -723,7 +883,14 @@ def main() -> None:
     LOGGER.info(f"arxivbot-telegram started. Allowed chat IDs: {allowed_chat_ids}")
 
     offset = 0
+    last_refresh = time.monotonic()
     while True:
+        if time.monotonic() - last_refresh > QUEUE_REFRESH_SECONDS:
+            last_refresh = time.monotonic()
+            try:
+                refresh_queue(token, allowed_chat_ids)
+            except Exception as e:
+                LOGGER.error(f"Clip queue refresh failed: {e}", exc_info=True)
         try:
             resp = requests.get(
                 f"https://api.telegram.org/bot{token}/getUpdates",
@@ -747,13 +914,9 @@ def main() -> None:
             continue  # Normal for long polling
         except requests.exceptions.ConnectionError as e:
             LOGGER.warning(f"Connection error (retrying in 5s): {e}")
-            import time
-
             time.sleep(5)
         except Exception as e:
             LOGGER.error(f"Unexpected error in main loop: {e}", exc_info=True)
-            import time
-
             time.sleep(5)
 
 

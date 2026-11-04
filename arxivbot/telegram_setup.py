@@ -124,8 +124,8 @@ def main() -> None:
     except requests.RequestException as e:
         raise SystemExit(f"Telegram rejected the token or could not be reached: {e}") from e
     print(f"Bot: @{username}")
-    print("\nAdd it to your channel as an admin that can post messages:")
-    print(f"  https://t.me/{username}?startchannel&admin=post_messages")
+    print("\nAdd it to your channel as an admin that can post and edit messages (editing lets it pin):")
+    print(f"  https://t.me/{username}?startchannel&admin=post_messages+edit_messages")
     input("Then post anything in the channel and press Enter.")
 
     try:

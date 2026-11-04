@@ -51,7 +51,7 @@ def test_main_finds_the_channel_and_writes_private_credentials(tmp_path, monkeyp
     assert creds.read_text() == credentials_text("1:abc", [-1001])
     assert stat.S_IMODE(creds.stat().st_mode) == 0o600
     assert stat.S_IMODE(creds.parent.stat().st_mode) == 0o700
-    assert "https://t.me/vault_inbox_bot?startchannel&admin=post_messages" in capsys.readouterr().out
+    assert "https://t.me/vault_inbox_bot?startchannel&admin=post_messages+edit_messages" in capsys.readouterr().out
 
 
 def test_main_explains_a_conflict_with_a_running_bot(monkeypatch):
