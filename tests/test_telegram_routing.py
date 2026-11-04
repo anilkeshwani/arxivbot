@@ -1,5 +1,7 @@
+import logging
 import re
 import subprocess
+import sys
 from functools import partial
 
 import pytest
@@ -319,3 +321,12 @@ def test_done_drops_a_page_by_number_and_the_pinned_list_follows(vault, monkeypa
     telegram_bot.show_queue("tok", {1})  # later changes edit the pinned message
     assert calls[-1][0] == "editMessageText" and calls[-1][1]["message_id"] == 7
 
+
+def test_the_bot_token_is_redacted_from_logs(caplog):
+    formatter = telegram_bot.RedactingFormatter("123:SECRET", "%(message)s")
+    try:
+        raise ConnectionError("Max retries exceeded with url: /bot123:SECRET/getUpdates")
+    except ConnectionError:
+        record = logging.LogRecord("t", logging.ERROR, "", 0, "failed: /bot123:SECRET/x", None, sys.exc_info())
+    text = formatter.format(record)
+    assert "SECRET" not in text and "/bot<redacted>/getUpdates" in text

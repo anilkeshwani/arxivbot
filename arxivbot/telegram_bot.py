@@ -871,14 +871,23 @@ def handle_message(token: str, allowed_chat_ids: set[int], message: dict) -> Non
         show_queue(token, allowed_chat_ids)
 
 
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+class RedactingFormatter(logging.Formatter):
+    """Hides a secret, such as the bot token in Telegram API URLs, wherever it appears in a log record."""
 
+    def __init__(self, secret: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.secret = secret
+
+    def format(self, record: logging.LogRecord) -> str:
+        return super().format(record).replace(self.secret, "<redacted>")
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO)
     token, allowed_chat_ids = load_credentials()
+    formatter = RedactingFormatter(token, "%(asctime)s %(levelname)s %(name)s: %(message)s", "%Y-%m-%d %H:%M:%S")
+    for handler in logging.getLogger().handlers:
+        handler.setFormatter(formatter)
     init_db(DB_PATH)
     LOGGER.info(f"arxivbot-telegram started. Allowed chat IDs: {allowed_chat_ids}")
 
@@ -914,6 +923,13 @@ def main() -> None:
             continue  # Normal for long polling
         except requests.exceptions.ConnectionError as e:
             LOGGER.warning(f"Connection error (retrying in 5s): {e}")
+            time.sleep(5)
+        except requests.HTTPError as e:
+            # A server error is Telegram's and passes; the request URL is left out, as it holds the token
+            status = e.response.status_code if e.response is not None else 0
+            LOGGER.log(
+                logging.WARNING if status >= 500 else logging.ERROR, f"Telegram returned {status} (retrying in 5s)"
+            )
             time.sleep(5)
         except Exception as e:
             LOGGER.error(f"Unexpected error in main loop: {e}", exc_info=True)
