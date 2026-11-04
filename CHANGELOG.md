@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [0.8.0] - 2026-11-04
+
+### Added
+
+- A clip queue for pages the Telegram bot cannot get: refused by the site (401, 403, 429 and similar), failing (5xx), timing out or showing no content. ([#16](https://github.com/anilkeshwani/arxivbot/pull/16))
+  - The page is first clipped from a Wayback Machine snapshot taken the same day, in local time, if there is one. A snapshot from another day is never used. `obsidian-clip` does the same.
+  - Otherwise it is queued: listed in a message pinned in the channel and in `Clip Queue.md` in the vault, kept in `.clip-queue.json`.
+  - A queued page leaves the queue once a clipping with its link as `source` reaches the vault, from the Web Clipper or a file sent to the bot. The bot pulls the vault hourly, and before each post and `/pending`, while the queue has pages.
+  - `/pending` lists the queue and `/done <number or link>` drops a page.
+  - `OBSIDIAN_CLIP_QUEUE_PATH` and `OBSIDIAN_CLIP_QUEUE_NOTE` environment variables.
+
+### Changed
+
+- `arxivbot-telegram-setup` asks for the right to edit messages as well as post them, which the bot needs to pin the clip queue. ([#16](https://github.com/anilkeshwani/arxivbot/pull/16))
+
+### Fixed
+
+- The bot token no longer appears in the bot's log. Telegram API URLs carry it, and tracebacks and connection errors printed them in full. ([#16](https://github.com/anilkeshwani/arxivbot/pull/16))
+- A Telegram server error (5xx) while polling is logged as a one-line warning instead of an error with a traceback. ([#16](https://github.com/anilkeshwani/arxivbot/pull/16))
+
 ## [0.7.0] - 2026-10-27
 
 ### Added
