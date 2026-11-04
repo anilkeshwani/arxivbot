@@ -1,4 +1,5 @@
 from datetime import date
+import json
 from pathlib import Path
 import subprocess
 
@@ -6,7 +7,15 @@ import pytest
 import yaml
 
 from arxivbot import web_clipper
-from arxivbot.web_clipper import ClipError, build_clipping, clip_file, clip_html, clip_url, sanitize_clip_filename
+from arxivbot.web_clipper import (
+    ClipError,
+    NeedsBrowserError,
+    build_clipping,
+    clip_file,
+    clip_html,
+    clip_url,
+    sanitize_clip_filename,
+)
 
 
 URL = "https://www.speechmatics.com/company/articles-and-news/meet-oak"
@@ -182,3 +191,75 @@ def test_clip_markdown_saves_web_clipper_notes_unchanged_and_once(tmp_path):
 def test_clip_file_rejects_other_files(tmp_path):
     with pytest.raises(ClipError, match="send a .html page or a .md note"):
         clip_file(tmp_path / "paper.pdf")
+
+
+@pytest.mark.parametrize(
+    ("error", "blocked", "reason"),
+    [
+        ("Error: Failed to fetch: 403 Forbidden", True, "403 Forbidden"),
+        ("Error: Failed to fetch: 503 Service Unavailable", True, "503 Service Unavailable"),
+        ("Error: Failed to fetch: 404 Not Found", False, None),
+        ("Error: not HTML", False, None),
+    ],
+)
+def test_run_defuddle_tells_pages_a_browser_may_get_from_other_failures(monkeypatch, error, blocked, reason):
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, "", error))
+    with pytest.raises(ClipError) as info:
+        web_clipper.run_defuddle(URL)
+    assert isinstance(info.value, NeedsBrowserError) == blocked
+    assert getattr(info.value, "reason", None) == reason
+
+
+class _Response:
+    def __init__(self, text="", content=b""):
+        self.text, self.content = text, content
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return json.loads(self.text)
+
+
+DAILY = "https://www.daily.co/blog/deepgram/"
+
+
+def _cdx(*timestamps):
+    return _Response(json.dumps([["timestamp", "original"]] + [[ts, DAILY] for ts in timestamps]))
+
+
+@pytest.mark.parametrize(
+    ("timestamps", "expected"),
+    [
+        (
+            ("20261103120000", "20261104100000", "20261104150000"),
+            f"https://web.archive.org/web/20261104150000id_/{DAILY}",
+        ),
+        (("20261103120000", "20261105120000"), None),
+        ((), None),
+    ],
+)
+def test_wayback_snapshot_only_takes_one_from_the_same_day(monkeypatch, timestamps, expected):
+    monkeypatch.setattr(web_clipper.requests, "get", lambda url, **kw: _cdx(*timestamps))
+    assert web_clipper.wayback_snapshot(DAILY, date(2026, 11, 4)) == expected
+
+
+def test_clip_url_falls_back_to_a_snapshot_from_today(tmp_path, monkeypatch):
+    html = f'<html><head><link rel="canonical" href="{DAILY}"></head><body>x</body></html>'.encode()
+
+    def get(url, **kw):
+        return _cdx("20261104120000") if "cdx" in url else _Response(content=html)
+
+    def defuddle(source):
+        if source.startswith("http"):
+            raise NeedsBrowserError("Defuddle failed: Error: Failed to fetch: 403 Forbidden", "403 Forbidden")
+        return {"title": "Deepgram is acquiring Daily", "content": "Body"}
+
+    monkeypatch.setattr(web_clipper.requests, "get", get)
+    monkeypatch.setattr(web_clipper, "run_defuddle", defuddle)
+    path, created = clip_url(DAILY, tmp_path, today=date(2026, 11, 4))
+    assert created and f'source: "{DAILY}"' in path.read_text()
+
+    monkeypatch.setattr(web_clipper.requests, "get", lambda url, **kw: _cdx("20261103120000"))
+    with pytest.raises(NeedsBrowserError):
+        clip_url("https://www.daily.co/blog/other/", tmp_path, today=date(2026, 11, 4))

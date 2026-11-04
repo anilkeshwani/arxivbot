@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 import html as html_lib
 import json
 import logging
@@ -12,6 +12,8 @@ import re
 import subprocess
 import tempfile
 from urllib.parse import urlsplit
+
+import requests
 
 from arxivbot.constants import CLIPPINGS_DIR
 
@@ -41,10 +43,22 @@ _SOURCE_RE = re.compile(r'^source: ("(?:[^"\\]|\\.)*")$', re.M)
 CLIP_FILE_SUFFIXES = {".md": "markdown", ".markdown": "markdown", ".html": "html", ".htm": "html"}
 # Characters YAML forbids even in double-quoted scalars, which json.dumps leaves unescaped
 _YAML_UNSAFE_RE = re.compile("[\x7f-\x9f\u2028\u2029]")
+# Statuses of a site refusing the server (bot checks, logins, rate limits) or failing, which a browser may get past
+_FETCH_STATUS_RE = re.compile(r"Failed to fetch: (\d{3})(.*)")
+_BROWSER_STATUSES = {401, 402, 403, 407, 429, 451}
+WAYBACK_TIMEOUT = 30
 
 
 class ClipError(RuntimeError):
     pass
+
+
+class NeedsBrowserError(ClipError):
+    """The server could not get the page, but a browser may: it was refused, timed out or showed no content."""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
 
 
 def run_defuddle(source: str) -> dict:
@@ -63,9 +77,12 @@ def run_defuddle(source: str) -> dict:
         except FileNotFoundError as e:
             raise ClipError("Defuddle CLI not found. Install with: npm install -g defuddle") from e
         except subprocess.TimeoutExpired as e:
-            raise ClipError(f"Defuddle timed out after {DEFUDDLE_TIMEOUT}s") from e
+            raise NeedsBrowserError(f"Defuddle timed out after {DEFUDDLE_TIMEOUT}s", "timed out") from e
         if result.returncode != 0 or not out_path.exists():
-            raise ClipError(f"Defuddle failed: {(result.stderr or result.stdout).strip()[:300]}")
+            error = f"Defuddle failed: {(result.stderr or result.stdout).strip()[:300]}"
+            if (m := _FETCH_STATUS_RE.search(error)) and (int(m[1]) in _BROWSER_STATUSES or int(m[1]) >= 500):
+                raise NeedsBrowserError(error, f"{m[1]}{m[2]}".strip())
+            raise ClipError(error)
         try:
             return json.loads(out_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
@@ -128,6 +145,13 @@ def find_clipping(url: str, clippings_dir: Path) -> Path | None:
     return None
 
 
+def clipping_source(note_path: Path) -> str | None:
+    """The source URL in a clipping's frontmatter."""
+    with note_path.open(encoding="utf-8", errors="ignore") as f:
+        m = _SOURCE_RE.search(f.read(4096))
+    return json.loads(m.group(1)) if m else None
+
+
 def _new_note_path(clippings_dir: Path, stem: str) -> Path:
     note_path = clippings_dir / f"{stem}.md"
     n = 1
@@ -146,7 +170,8 @@ def _save(note_path: Path, note: str) -> tuple[Path, bool]:
 
 def _save_page(url: str, page: dict, clippings_dir: Path, today: date | None) -> tuple[Path, bool]:
     if not (page.get("content") or "").strip():
-        raise ClipError("Defuddle extracted no content (page may need JavaScript or a login)")
+        message = "Defuddle extracted no content (page may need JavaScript or a login)"
+        raise NeedsBrowserError(message, "no content, needs a login or JavaScript")
     title, note = build_clipping(url, page, today or date.today())
     return _save(_new_note_path(clippings_dir, sanitize_clip_filename(title)), note)
 
@@ -157,12 +182,69 @@ def _already_clipped(url: str, clippings_dir: Path) -> Path | None:
     return existing
 
 
-def clip_url(url: str, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None) -> tuple[Path, bool]:
-    """Clip url into clippings_dir. Returns (note path, created) where created is False if already clipped."""
+def wayback_snapshot(url: str, day: date) -> str | None:
+    """The address of the Wayback Machine's latest snapshot of url taken on day (local time), if there is one.
+
+    The snapshot is the page as served, without the archive's toolbar or rewritten links.
+    """
+    # The archive's timestamps are UTC, so the query spans the UTC days the local day overlaps
+    params = {"url": url, "from": f"{day - timedelta(days=1):%Y%m%d}", "to": f"{day + timedelta(days=1):%Y%m%d}"}
+    params |= {"output": "json", "fl": "timestamp,original", "filter": "statuscode:200"}
+    try:
+        resp = requests.get("https://web.archive.org/cdx/search/cdx", params=params, timeout=WAYBACK_TIMEOUT)
+        resp.raise_for_status()
+        rows = resp.json()[1:] if resp.text.strip() else []  # the first row is the header
+    except (requests.RequestException, ValueError) as e:
+        LOGGER.warning(f"Wayback Machine lookup failed for {url}: {e}")
+        return None
+
+    def local_day(timestamp: str) -> date:
+        return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=UTC).astimezone().date()
+
+    same_day = [(timestamp, original) for timestamp, original in rows if local_day(timestamp) == day]
+    if not same_day:
+        return None
+    timestamp, original = max(same_day)
+    return f"https://web.archive.org/web/{timestamp}id_/{original}"
+
+
+def clip_wayback(url: str, clippings_dir: Path, today: date) -> tuple[Path, bool] | None:
+    """Clip url from a Wayback Machine snapshot taken today, or None if there is none.
+
+    A snapshot from another day is never used, since the page may have changed since.
+    """
+    if not (snapshot := wayback_snapshot(url, today)):
+        return None
+    LOGGER.info(f"Clipping {url} from {snapshot}")
+    try:
+        resp = requests.get(snapshot, headers={"User-Agent": USER_AGENT}, timeout=WAYBACK_TIMEOUT)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        LOGGER.warning(f"Could not fetch {snapshot}: {e}")
+        return None
+    with tempfile.TemporaryDirectory(prefix="arxivbot_wayback_") as tmp_dir:
+        html_path = Path(tmp_dir) / "page.html"
+        html_path.write_bytes(resp.content)
+        return clip_html(html_path, url, clippings_dir, today)
+
+
+def clip_url(
+    url: str, clippings_dir: Path = CLIPPINGS_DIR, today: date | None = None, wayback: bool = True
+) -> tuple[Path, bool]:
+    """Clip url into clippings_dir. Returns (note path, created) where created is False if already clipped.
+
+    A page the server cannot get is clipped from a Wayback Machine snapshot taken today, if wayback is set.
+    """
     url = canonical_url(url)
     if existing := _already_clipped(url, clippings_dir):
         return existing, False
-    return _save_page(url, run_defuddle(url), clippings_dir, today)
+    today = today or date.today()
+    try:
+        return _save_page(url, run_defuddle(url), clippings_dir, today)
+    except NeedsBrowserError:
+        if wayback and (clipped := clip_wayback(url, clippings_dir, today)):
+            return clipped
+        raise
 
 
 def _page_url(html: str) -> str | None:
@@ -198,7 +280,7 @@ def clip_html(
 def clip_markdown(md_path: Path, clippings_dir: Path = CLIPPINGS_DIR) -> tuple[Path, bool]:
     """Save a note the Web Clipper exported as a file, unchanged, unless a note with its source exists."""
     note = md_path.read_text(encoding="utf-8")
-    if (m := _SOURCE_RE.search(note[:4096])) and (existing := _already_clipped(json.loads(m.group(1)), clippings_dir)):
+    if (source := clipping_source(md_path)) and (existing := _already_clipped(source, clippings_dir)):
         return existing, False
     return _save(_new_note_path(clippings_dir, sanitize_clip_filename(md_path.stem)), note)
 
