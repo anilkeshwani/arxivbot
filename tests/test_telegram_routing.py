@@ -1,9 +1,11 @@
 import re
 import subprocess
+from functools import partial
 
 import pytest
 
-from arxivbot import telegram_bot
+from arxivbot import clip_queue, telegram_bot
+from arxivbot.clip_queue import ClipQueue
 from arxivbot.telegram_bot import extract_links, git_commit, git_push, process_paper, route_message, run_item
 
 
@@ -96,8 +98,16 @@ def vault(tmp_path, monkeypatch):
     _run(vault, "branch", "-q", "-u", "origin/main")
     monkeypatch.setattr(telegram_bot, "OBSIDIAN_VAULT_DIR", vault)
     monkeypatch.setattr(telegram_bot, "PAPERS_DIR", vault / "Papers")
+    queue_path, queue_note = vault / ".clip-queue.json", vault / "Clip Queue.md"
+    for module in (telegram_bot, clip_queue):
+        monkeypatch.setattr(module, "CLIP_QUEUE_PATH", queue_path)
+        monkeypatch.setattr(module, "CLIP_QUEUE_NOTE", queue_note)
+    monkeypatch.setattr(telegram_bot, "CLIPPINGS_DIR", vault / "Clippings")
+    monkeypatch.setattr(telegram_bot, "QUEUE_MESSAGES_PATH", tmp_path / "state" / "queue-messages.json")
     monkeypatch.setattr(
-        telegram_bot, "VAULT_WRITE_PATHS", (vault / "Papers", vault / ".papers.db", vault / "Clippings")
+        telegram_bot,
+        "VAULT_WRITE_PATHS",
+        (vault / "Papers", vault / ".papers.db", vault / "Clippings", queue_path, queue_note),
     )
     return vault
 
@@ -226,3 +236,86 @@ def test_a_failed_file_download_does_not_reveal_the_token(monkeypatch):
     with pytest.raises(telegram_bot.ClipError) as info:
         telegram_bot.clip_document("SECRET", {"file_id": "f", "file_name": "big.html"}, None)
     assert "SECRET" not in str(info.value)
+
+
+def _blocked(url, wayback=False):
+    raise telegram_bot.NeedsBrowserError("Defuddle failed: Error: Failed to fetch: 403 Forbidden", "403 Forbidden")
+
+
+GIFT = "https://giftarticle.ft.com/redeem/abc"
+
+
+def test_a_blocked_page_with_no_snapshot_from_today_is_queued(vault, monkeypatch):
+    monkeypatch.setattr(telegram_bot, "clip_url", _blocked)
+    monkeypatch.setattr(telegram_bot, "clip_wayback", lambda url, clippings_dir, today: None)
+    monkeypatch.setattr(telegram_bot, "final_url", lambda url: "https://www.ft.com/content/abc?accessToken=x")
+
+    status, committed = run_item(GIFT, partial(telegram_bot.clip_page, GIFT))
+    assert committed and status.endswith("Added to the clip queue (1 waiting).")
+    assert "403 Forbidden" in status
+    assert _committed_files(vault) == {".clip-queue.json", "Clip Queue.md"}
+    assert f"- <{GIFT}> (posted " in (vault / "Clip Queue.md").read_text()
+
+    assert run_item(GIFT, partial(telegram_bot.clip_page, GIFT)) == (f"Already in the clip queue: {GIFT}", False)
+
+
+def test_a_blocked_page_is_clipped_from_a_snapshot_taken_today(vault, monkeypatch):
+    note = vault / "Clippings" / "Deepgram.md"
+
+    def wayback(url, clippings_dir, today):
+        note.write_text('---\nsource: "https://www.daily.co/blog/deepgram/"\n---\nBody\n')
+        return note, True
+
+    monkeypatch.setattr(telegram_bot, "clip_url", _blocked)
+    monkeypatch.setattr(telegram_bot, "clip_wayback", wayback)
+    status, committed = run_item("u", partial(telegram_bot.clip_page, "https://www.daily.co/blog/deepgram/"))
+    assert (status, committed) == ("Clipped from a Wayback Machine snapshot: Deepgram", True)
+    assert "Wayback Machine" in _run(vault, "log", "-1", "--format=%s")
+    assert not ClipQueue()
+
+
+def test_a_page_clipped_elsewhere_leaves_the_queue_after_a_pull(vault, tmp_path, monkeypatch):
+    queue = ClipQueue()
+    queue.add(GIFT, "403 Forbidden", telegram_bot.date(2026, 11, 4), "https://www.ft.com/content/abc?accessToken=x")
+    queue.add("https://e.com/keep", "timed out", telegram_bot.date(2026, 11, 4))
+    queue.save()
+    assert git_commit([vault / ".clip-queue.json", vault / "Clip Queue.md"], "queue") and git_push()
+
+    laptop = tmp_path / "laptop"
+    _run(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(laptop))
+    (laptop / "Clippings").mkdir()  # empty in the fixture, so not in the clone
+    (laptop / "Clippings" / "Quant.md").write_text(
+        '---\ntitle: "Quant"\nsource: "https://www.ft.com/content/abc"\n---\n'
+    )
+    _run(laptop, "add", "-A")
+    _run(laptop, "commit", "-qm", "Web Clipper")
+    _run(laptop, "push", "-q")
+
+    shown = []
+    monkeypatch.setattr(telegram_bot, "show_queue", lambda token, chats: shown.append(len(ClipQueue())))
+    telegram_bot.refresh_queue("tok", {1})
+    assert [page["url"] for page in ClipQueue().pages] == ["https://e.com/keep"]
+    assert shown == [1]
+    assert _run(vault, "status", "--porcelain", "-b").startswith("## main...origin/main\n")
+
+
+def test_done_drops_a_page_by_number_and_the_pinned_list_follows(vault, monkeypatch):
+    queue = ClipQueue()
+    for url in ("https://e.com/a", "https://e.com/b"):
+        queue.add(url, "403 Forbidden", telegram_bot.date(2026, 11, 4))
+    queue.save()
+    calls, sent = [], []
+    monkeypatch.setattr(telegram_bot, "git_push", lambda: True)
+    monkeypatch.setattr(telegram_bot, "send_message", lambda token, chat, text, reply_to=None: sent.append(text) or 7)
+    monkeypatch.setattr(telegram_bot, "telegram_api", lambda token, method, **kw: calls.append((method, kw["json"])))
+
+    telegram_bot.handle_message("tok", {1}, {"chat": {"id": 1}, "message_id": 5, "text": "/done@vault_bot 1"})
+
+    assert sent[0] == "Dropped https://e.com/a from the clip queue."
+    assert "1. https://e.com/b (403 Forbidden, posted 2026-11-04)" in sent[1]
+    assert calls == [("pinChatMessage", {"chat_id": 1, "message_id": 7, "disable_notification": True})]
+    assert _run(vault, "log", "-1", "--format=%s").strip() == 'Drop "https://e.com/a" from the clip queue'
+
+    telegram_bot.show_queue("tok", {1})  # later changes edit the pinned message
+    assert calls[-1][0] == "editMessageText" and calls[-1][1]["message_id"] == 7
+
