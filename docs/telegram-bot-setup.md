@@ -18,7 +18,13 @@ You need:
 1. Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
 2. Give it a display name (for example `Vault Inbox`) and a username ending in `bot` (for example `my_vault_inbox_bot`).
 3. BotFather replies with a token such as `123456789:AAH...`. Anyone holding it controls the bot, so keep it out of chats and repositories.
-4. Optional: send `/setcommands`, pick the bot and send `help - What the bot recognizes`, so `/help` autocompletes in the channel.
+4. Optional: send `/setcommands`, pick the bot and send the lines below, so the commands autocomplete in the channel:
+
+   ```
+   help - What the bot recognizes
+   pending - List the clip queue
+   done - Drop a page from the clip queue: /done <number>
+   ```
 
 ## 2. Create a private channel
 
@@ -34,7 +40,7 @@ OBSIDIAN_VAULT_DIR=~/journal arxivbot-telegram-setup --service
 
 It asks for the token without echoing it, then:
 
-1. prints a link, `https://t.me/<bot username>?startchannel&admin=post_messages`, that opens Telegram's "add to channel" picker with the **Post Messages** right already ticked. Open it on any device where you use Telegram, pick the channel and confirm;
+1. prints a link, `https://t.me/<bot username>?startchannel&admin=post_messages+edit_messages`, that opens Telegram's "add to channel" picker with the **Post Messages** and **Edit Messages of Others** rights already ticked. The bot needs the second to pin the [clip queue](#the-clip-queue). Open it on any device where you use Telegram, pick the channel and confirm;
 2. asks you to post anything in the channel, then lists the chats that have reached the bot. Pick the channel (and your direct chat with the bot, if you also messaged it);
 3. writes `~/.config/arxivbot/credentials.env`, readable only by you;
 4. with `--service`, writes `~/.config/systemd/user/arxivbot-telegram.service` with a `PATH` built from where your shell finds `arxivbot-telegram`, `obsidian-import`, `defuddle`, `node`, `claude` and `git`, shows it, and offers to enable it and turn on lingering so it keeps running after you log out.
@@ -45,7 +51,7 @@ Without `--service` it only writes the credentials and prints the command that s
 
 If you would rather not run the setup command:
 
-1. Make the bot an admin of the channel: open `https://t.me/<bot username>?startchannel&admin=post_messages`, or go to the channel's **Manage Channel** > **Administrators** > **Add Admin**, search for the bot and keep **Post Messages** on.
+1. Make the bot an admin of the channel: open `https://t.me/<bot username>?startchannel&admin=post_messages+edit_messages`, or go to the channel's **Manage Channel** > **Administrators** > **Add Admin**, search for the bot and turn on **Post Messages** and **Edit Messages of Others**.
 2. Post anything in the channel, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser. The channel's ID is the number at `"channel_post"` > `"chat"` > `"id"`, starting with `-100`. An empty `"result": []` means no post reached the bot: check it is an admin and post again.
 3. Write the credentials file. `ARXIVBOT_TELEGRAM_ALLOWED_CHAT_IDS` takes several IDs separated by commas, and posts from any other chat are ignored:
 
@@ -116,6 +122,23 @@ The same works from a shell with `obsidian-clip saved-page.html` or `obsidian-cl
 
 When the vault is open on the same machine as the browser, clipping with the Web Clipper directly into the vault is simpler still.
 
+## The clip queue
+
+When the server cannot get a page, because the site refused it (401, 403, 429 and similar), failed (5xx), timed out or showed no content, the bot first looks for a [Wayback Machine](https://web.archive.org/) snapshot of the page taken the same day, in local time. If there is one, it clips that, and the reply and commit message say so. A snapshot from any other day is never used, since the page may have changed since. The bot does not ask the archive to take a snapshot.
+
+Otherwise the page goes on the clip queue, to clip yourself from a browser later:
+
+- the reply says the page was queued and how many are waiting;
+- a message listing the queue is pinned in the channel and edited whenever the queue changes. Pinning needs the bot's right to edit messages (**Edit Messages of Others** in the channel's admin settings); without it the list is posted but not pinned;
+- `Clip Queue.md` at the vault root lists the same pages. The bot rewrites it from `.clip-queue.json` on every change, so edits to the note are lost.
+
+Clip a queued page any way you like: with the Web Clipper straight into the vault, or by sending the bot its `.html` or `.md` file. Once a note in `Clippings/` has the page's link as its `source`, the page leaves the queue. A link that redirects, such as a gift link, also matches its destination without the query string, which holds the gift token. The bot pulls the vault to look for new clippings once an hour, before handling a post and on `/pending`, and only while the queue has pages in it.
+
+- `/pending` lists the queue.
+- `/done <number>`, or `/done <link>`, drops a page you no longer want.
+
+The queue's paths can be changed with `OBSIDIAN_CLIP_QUEUE_PATH` and `OBSIDIAN_CLIP_QUEUE_NOTE`.
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
@@ -124,6 +147,7 @@ When the vault is open on the same machine as the browser, clipping with the Web
 | `409 Conflict` in the log | Two copies are polling the same bot, for example a foreground run and the service. Stop one. |
 | `Committed locally but git push failed` | The push could not authenticate or hit a conflict it could not rebase. Run the check in step 4 and `git -C ~/journal status`. The commits are kept and go out with the next successful push. |
 | `Defuddle CLI not found` or `obsidian-import: not found` | The service's `PATH` does not reach the program. Rerun `arxivbot-telegram-setup --service` from a shell where `command -v defuddle` works. |
-| `Defuddle failed: ... 403 Forbidden` | The site blocks requests that do not come from a real browser (bot protection such as PerimeterX or a Cloudflare check). Send the page as a file instead (see [Pages that need your login](#pages-that-need-your-login)). |
-| `Defuddle extracted no content` | The page needs JavaScript or a login to show its text. Send it as a Web Clipper `.md` file. |
+| `Could not get ... Added to the clip queue` | The site refused the server or showed it no content, and the Wayback Machine has no snapshot from today. Clip the page from your browser (see [The clip queue](#the-clip-queue)). |
+| `Defuddle failed: ... 404 Not Found` | The link is wrong or the page is gone. Such pages are not queued. |
+| The clip queue is posted but not pinned | The bot lacks the right to edit messages. Turn on **Edit Messages of Others** for it in the channel's admin settings. |
 | `The saved page does not name its URL` | The `.html` file has no canonical link. Send it again with the page's link as the caption. |
