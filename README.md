@@ -45,6 +45,8 @@ All paths can be overridden via environment variables (defaults shown):
 | `OBSIDIAN_PDFS_DIR` | `$OBSIDIAN_VAULT_DIR/PDFs` | Directory for downloaded PDFs |
 | `OBSIDIAN_DB_PATH` | `$OBSIDIAN_VAULT_DIR/.papers.db` | SQLite database path |
 | `OBSIDIAN_CLIPPINGS_DIR` | `$OBSIDIAN_VAULT_DIR/Clippings` | Directory for clipped web pages |
+| `OBSIDIAN_CLIP_QUEUE_PATH` | `$OBSIDIAN_VAULT_DIR/.clip-queue.json` | Pages the Telegram bot could not clip |
+| `OBSIDIAN_CLIP_QUEUE_NOTE` | `$OBSIDIAN_VAULT_DIR/Clip Queue.md` | Note listing the clip queue |
 | `S2_API_KEY` | _(none)_ | Semantic Scholar API key |
 
 ## Usage
@@ -92,7 +94,7 @@ npm install -g defuddle
 obsidian-clip https://example.com/some-article [<url> ...]
 ```
 
-For pages the server cannot load (paywalls, logins, bot checks), pass a page saved from your browser as `.html`, or a note saved from the Web Clipper as `.md`: `obsidian-clip saved-page.html`. A URL that is already the `source` of a note in `Clippings/` is skipped. X posts are saved under `https://x.com/<handle>/status/<id>` whichever host or share suffix the link had, and titled with the handle and the post's opening words. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
+For pages the server cannot load (paywalls, logins, bot checks), `obsidian-clip` uses a Wayback Machine snapshot taken the same day if there is one. Otherwise pass a page saved from your browser as `.html`, or a note saved from the Web Clipper as `.md`: `obsidian-clip saved-page.html`. A URL that is already the `source` of a note in `Clippings/` is skipped. X posts are saved under `https://x.com/<handle>/status/<id>` whichever host or share suffix the link had, and titled with the handle and the post's opening words. Pages that need JavaScript or a login to render yield no content and fail, as they do in the Web Clipper.
 
 ## Telegram bot
 
@@ -100,6 +102,8 @@ For pages the server cannot load (paywalls, logins, bot checks), pass a page sav
 
 - **Papers** (arXiv URLs and IDs, DOIs and publisher links containing one, Semantic Scholar URLs, Hugging Face and alphaXiv paper pages) are imported as by `obsidian-import`. A paper link that cannot be found is clipped instead.
 - **Any other link** is clipped as by `obsidian-clip`, and so is a `.html` page or Web Clipper `.md` note sent as a file.
+
+A page the server cannot get (a bot check, a login, no content) is clipped from a Wayback Machine snapshot taken the same day if there is one. Otherwise it goes on a clip queue, pinned in the channel and listed in `Clip Queue.md`, until you clip it from a browser; `/pending` lists it and `/done <number>` drops a page. See [the clip queue](docs/telegram-bot-setup.md#the-clip-queue).
 
 Each paper or page becomes its own commit in the vault, containing only the files it wrote, and each post ends with one push. By default every imported paper is also analyzed with `claude -p` and the analysis appended to its note; set `ARXIVBOT_TELEGRAM_ANALYZE=0` to only import (PDFs are then not downloaded either).
 
@@ -122,6 +126,7 @@ It checks the token, prints a link that adds the bot to your channel as an admin
 ├── arxivbot/
 │   ├── __init__.py
 │   ├── arxiv_api.py
+│   ├── clip_queue.py
 │   ├── constants.py
 │   ├── database.py
 │   ├── find_arxiv_links.py
