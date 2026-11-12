@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Versions before 0.5.0 were tagged without a changelog.
 
+## [Unreleased]
+
+### Changed
+
+- Whether a paper is already in the vault is read from the frontmatter of the notes in `Papers/` (`s2_paper_id`, `arxiv_id` or `link`, `doi`), instead of from `.papers.db`. Notes imported before the database existed are now recognized, and nothing is left for two machines importing into the same vault to conflict over in git.
+- The Telegram bot no longer commits `.papers.db`.
+
+### Removed
+
+- The SQLite database `.papers.db` and the `OBSIDIAN_DB_PATH` environment variable. Remove the file from the vault with `git rm --cached .papers.db` and add it to `.gitignore`, or delete it.
+
 ## [0.8.0] - 2026-11-04
 
 ### Added
