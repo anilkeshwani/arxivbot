@@ -54,7 +54,7 @@ All paths can be overridden via environment variables (defaults shown):
 obsidian-import <id> [<id> ...] [--no_pdf] [--force]
 ```
 
-A paper is skipped, without calling the API, when a note in `Papers/` already has its Semantic Scholar ID, arXiv ID or DOI in its frontmatter (`s2_paper_id`, `arxiv_id` or the arXiv ID in `link`, `doi`). The notes are the only record of what the vault holds: nothing else is stored.
+A paper is skipped, without calling the API, when a note in `Papers/` already has its Semantic Scholar ID, arXiv ID or DOI in its frontmatter (`s2_paper_id`, `arxiv_id` or the arXiv ID in `link`, `doi`). The notes are the only record of what the vault holds. What each note's frontmatter says is cached outside the vault, in `$XDG_CACHE_HOME/arxivbot/` (default `~/.cache/arxivbot/`), and a note is read again only when the file changes (its modification time, change time, size or inode). The cache is never committed; deleting it costs one slower run.
 
 ### Arguments
 
