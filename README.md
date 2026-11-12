@@ -43,7 +43,6 @@ All paths can be overridden via environment variables (defaults shown):
 | `OBSIDIAN_VAULT_DIR` | `~/Desktop/journal/` | Root of your Obsidian vault |
 | `OBSIDIAN_PAPERS_DIR` | `$OBSIDIAN_VAULT_DIR/Papers` | Directory for paper notes |
 | `OBSIDIAN_PDFS_DIR` | `$OBSIDIAN_VAULT_DIR/PDFs` | Directory for downloaded PDFs |
-| `OBSIDIAN_DB_PATH` | `$OBSIDIAN_VAULT_DIR/.papers.db` | SQLite database path |
 | `OBSIDIAN_CLIPPINGS_DIR` | `$OBSIDIAN_VAULT_DIR/Clippings` | Directory for clipped web pages |
 | `OBSIDIAN_CLIP_QUEUE_PATH` | `$OBSIDIAN_VAULT_DIR/.clip-queue.json` | Pages the Telegram bot could not clip |
 | `OBSIDIAN_CLIP_QUEUE_NOTE` | `$OBSIDIAN_VAULT_DIR/Clip Queue.md` | Note listing the clip queue |
@@ -55,13 +54,15 @@ All paths can be overridden via environment variables (defaults shown):
 obsidian-import <id> [<id> ...] [--no_pdf] [--force]
 ```
 
+A paper is skipped, without calling the API, when a note in `Papers/` already has its Semantic Scholar ID, arXiv ID or DOI in its frontmatter (`s2_paper_id`, `arxiv_id` or the arXiv ID in `link`, `doi`). The notes are the only record of what the vault holds: nothing else is stored.
+
 ### Arguments
 
 | Argument | Description |
 |---|---|
 | `id` | One or more paper identifiers: arXiv IDs, arXiv URLs, S2 paper IDs, S2 URLs, or DOIs |
 | `--no_pdf` | Skip PDF download |
-| `--force` | Re-fetch papers already present in the local database |
+| `--force` | Re-fetch papers that already have a note in the vault |
 
 ### Examples
 
@@ -81,7 +82,7 @@ obsidian-import DOI:10.18653/v1/N18-3011
 # Import multiple papers, skip PDF download
 obsidian-import 2408.16532 1706.03762 --no_pdf
 
-# Re-fetch a paper that's already in the database
+# Re-fetch a paper that already has a note
 obsidian-import 2408.16532 --force
 ```
 
@@ -128,10 +129,10 @@ It checks the token, prints a link that adds the bot to your channel as an admin
 │   ├── arxiv_api.py
 │   ├── clip_queue.py
 │   ├── constants.py
-│   ├── database.py
 │   ├── find_arxiv_links.py
 │   ├── identifiers.py
 │   ├── obsidian_importer.py
+│   ├── paper_index.py
 │   ├── s2_api.py
 │   ├── telegram_bot.py
 │   ├── telegram_setup.py

@@ -5,8 +5,7 @@ import requests
 
 from arxivbot import arxiv_api, obsidian_importer, s2_api
 from arxivbot.arxiv_api import fetch_arxiv_papers
-from arxivbot.database import init_db, paper_exists
-from arxivbot.obsidian_importer import _normalize_paper, _process_paper
+from arxivbot.obsidian_importer import _normalize_paper
 from arxivbot.s2_api import fetch_s2_batch
 
 
@@ -95,28 +94,27 @@ def test_normalize_paper_from_s2_json():
     assert paper["open_access_pdf_url"] is None
 
 
-def test_failed_note_write_leaves_no_db_row(tmp_path, monkeypatch):
-    db_path = tmp_path / "papers.db"
-    init_db(db_path)
-    monkeypatch.setattr(obsidian_importer, "DB_PATH", db_path)
-
-    def fail_write(**_):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(obsidian_importer, "write_obsidian_paper", fail_write)
-    with pytest.raises(OSError):
-        _process_paper(_normalize_paper(S2_PAPER), download_pdf=False)
-    assert not paper_exists(db_path, arxiv_id="1706.03762")
-
-
 def test_main_exits_when_vault_is_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(obsidian_importer, "PAPERS_DIR", tmp_path / "missing_vault" / "Papers")
-    monkeypatch.setattr(obsidian_importer, "DB_PATH", tmp_path / "missing_vault" / ".papers.db")
     monkeypatch.setattr("sys.argv", ["obsidian-import", "1706.03762", "--no_pdf"])
     with pytest.raises(SystemExit) as exit_info:
         obsidian_importer.main()
     assert exit_info.value.code == 1
     assert not (tmp_path / "missing_vault").exists()
+
+
+
+def test_main_skips_papers_whose_note_is_in_the_vault(tmp_path, monkeypatch, caplog):
+    papers = tmp_path / "Papers"
+    papers.mkdir()
+    (papers / "Attention.md").write_text("---\ntitle: Attention Is All You Need\narxiv_id: '1706.03762'\n---\n")
+    monkeypatch.setattr(obsidian_importer, "PAPERS_DIR", papers)
+    monkeypatch.setattr(obsidian_importer, "fetch_papers_batch", lambda *a, **k: pytest.fail("fetched a known paper"))
+    monkeypatch.setattr("sys.argv", ["obsidian-import", "https://arxiv.org/abs/1706.03762v7", "--no_pdf"])
+    with caplog.at_level("INFO"):
+        obsidian_importer.main()
+    assert "Already in the vault, skipping" in caplog.text
+    assert "Attention Is All You Need" in caplog.text
 
 
 ARXIV_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
