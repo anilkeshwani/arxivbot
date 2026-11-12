@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - Whether a paper is already in the vault is read from the frontmatter of the notes in `Papers/` (`s2_paper_id`, `arxiv_id` or `link`, `doi`), instead of from `.papers.db`. Notes imported before the database existed are now recognized, and nothing is left for two machines importing into the same vault to conflict over in git.
+- What each note's frontmatter says is cached in `$XDG_CACHE_HOME/arxivbot/` (default `~/.cache/arxivbot/`), outside the vault, and a note is read again only when the file changes (its modification time, change time, size or inode). A run is then about as fast as a database lookup.
 - The Telegram bot no longer commits `.papers.db`.
 
 ### Removed
