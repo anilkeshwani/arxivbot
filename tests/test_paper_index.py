@@ -1,4 +1,11 @@
-from arxivbot.paper_index import PaperIndex
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from arxivbot import paper_index
+from arxivbot.paper_index import PaperIndex, default_cache_path
 
 
 def _note(papers_dir, name, frontmatter):
@@ -61,3 +68,107 @@ def test_first_note_in_name_order_wins_a_shared_id(tmp_path):
     _note(tmp_path, "B", "doi: 10.1/x")
     _note(tmp_path, "A", "doi: 10.1/x")
     assert PaperIndex.build(tmp_path).find(doi="10.1/x").title == "A"
+
+
+def _build_without_reading(papers_dir):
+    """Build the index, failing if any note is read from disk."""
+    def fail(note):
+        raise AssertionError(f"read {note.name} again")
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(paper_index, "_read_fields", fail)
+        return PaperIndex.build(papers_dir)
+
+
+def test_cache_spares_rereading_unchanged_notes(tmp_path):
+    _note(tmp_path, "A", "doi: 10.1/a\narxiv_id: '2406.12990'")
+    first = PaperIndex.build(tmp_path)
+    assert default_cache_path(tmp_path).exists()
+    second = _build_without_reading(tmp_path)
+    assert second == first
+    assert second.find(arxiv_id="2406.12990").title == "A"
+
+
+def test_cache_follows_added_changed_and_deleted_notes(tmp_path):
+    a = _note(tmp_path, "A", "doi: 10.1/a")
+    b = _note(tmp_path, "B", "doi: 10.1/b")
+    PaperIndex.build(tmp_path)
+    a.write_text("---\ndoi: 10.1/a-changed\n---\n")
+    os.utime(a, ns=(a.stat().st_atime_ns, a.stat().st_mtime_ns + 1_000_000))
+    b.unlink()
+    _note(tmp_path, "C", "doi: 10.1/c")
+    index = PaperIndex.build(tmp_path)
+    assert index.find(doi="10.1/a") is None
+    assert index.find(doi="10.1/a-changed").title == "A"
+    assert index.find(doi="10.1/b") is None
+    assert index.find(doi="10.1/c").title == "C"
+    assert set(json.loads(default_cache_path(tmp_path).read_text())["notes"]) == {"A.md", "C.md"}
+
+
+def test_cache_is_rebuilt_when_unusable(tmp_path):
+    _note(tmp_path, "A", "doi: 10.1/a")
+    cache = default_cache_path(tmp_path)
+    for content in ("not json", json.dumps({"version": -1, "notes": {}}), json.dumps([1, 2])):
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(content)
+        assert PaperIndex.build(tmp_path).find(doi="10.1/a").title == "A"
+        assert json.loads(cache.read_text())["version"] == paper_index._CACHE_VERSION
+
+
+def test_cache_of_another_papers_folder_is_not_used(tmp_path):
+    first, second = tmp_path / "one", tmp_path / "two"
+    for folder, doi in ((first, "10.1/one"), (second, "10.1/two")):
+        folder.mkdir()
+        _note(folder, "Same", f"doi: {doi}")
+    shared = tmp_path / "shared.json"
+    PaperIndex.build(first, shared)
+    assert PaperIndex.build(second, shared).find(doi="10.1/two") is not None
+
+
+def test_works_when_the_cache_cannot_be_written(tmp_path, caplog):
+    _note(tmp_path, "A", "doi: 10.1/a")
+    blocker = tmp_path / "file"
+    blocker.write_text("")
+    assert PaperIndex.build(tmp_path, blocker / "sub" / "index.json").find(doi="10.1/a").title == "A"
+    assert "Could not save the paper index" in caplog.text
+
+
+def test_a_note_that_cannot_be_read_is_tried_again_next_time(tmp_path):
+    _note(tmp_path, "A", "doi: 10.1/a")
+    real_read_text = Path.read_text
+
+    def flaky(self, *args, **kwargs):
+        if self.name == "A.md":
+            raise PermissionError("busy")
+        return real_read_text(self, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(Path, "read_text", flaky)
+        assert PaperIndex.build(tmp_path).find(doi="10.1/a") is None
+    assert PaperIndex.build(tmp_path).find(doi="10.1/a").title == "A"
+
+
+def test_a_note_rewritten_with_its_old_mtime_and_size_is_read_again(tmp_path):
+    note = _note(tmp_path, "A", "doi: 10.1/aaaa")
+    PaperIndex.build(tmp_path)
+    before = note.stat()
+    note.write_text(note.read_text().replace("aaaa", "bbbb"))
+    os.utime(note, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert note.stat().st_size == before.st_size
+    index = PaperIndex.build(tmp_path)
+    assert index.find(doi="10.1/bbbb") is not None
+    assert index.find(doi="10.1/aaaa") is None
+
+
+def test_an_interrupted_save_leaves_no_temporary_file(tmp_path):
+    _note(tmp_path, "A", "doi: 10.1/a")
+    cache = tmp_path / "cache" / "index.json"
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(paper_index.json, "dump", interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            PaperIndex.build(tmp_path, cache)
+    assert list(cache.parent.iterdir()) == []

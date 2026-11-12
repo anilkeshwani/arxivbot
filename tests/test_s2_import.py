@@ -103,7 +103,6 @@ def test_main_exits_when_vault_is_missing(tmp_path, monkeypatch):
     assert not (tmp_path / "missing_vault").exists()
 
 
-
 def test_main_skips_papers_whose_note_is_in_the_vault(tmp_path, monkeypatch, caplog):
     papers = tmp_path / "Papers"
     papers.mkdir()
