@@ -92,7 +92,7 @@ def vault(tmp_path, monkeypatch):
     _run(tmp_path, "clone", "-q", str(remote), str(vault))
     (vault / "Papers").mkdir()
     (vault / "Clippings").mkdir()
-    (vault / ".papers.db").write_text("db")
+    (vault / "Papers" / "Shared.md").write_text("shared")
     (vault / "Papers" / "Old.md").write_text("old")
     _run(vault, "add", "-A")
     _run(vault, "commit", "-qm", "init")
@@ -109,7 +109,7 @@ def vault(tmp_path, monkeypatch):
     monkeypatch.setattr(
         telegram_bot,
         "VAULT_WRITE_PATHS",
-        (vault / "Papers", vault / ".papers.db", vault / "Clippings", queue_path, queue_note),
+        (vault / "Papers", vault / "Clippings", queue_path, queue_note),
     )
     return vault
 
@@ -123,15 +123,15 @@ def test_run_item_commits_only_what_the_item_wrote(vault):
     (vault / "Unrelated.md").write_text("staged by user")
     _run(vault, "add", "Unrelated.md")
     (vault / "Papers" / "[CLS] B.md").write_text("user's untracked note")
-    (vault / ".papers.db").write_text("dirty before")
+    (vault / "Papers" / "Shared.md").write_text("dirty before")
 
     def job():
         (vault / "Papers" / "[CLS] A.md").write_text("new")
-        (vault / ".papers.db").write_text("dirty again")
+        (vault / "Papers" / "Shared.md").write_text("dirty again")
         return "Imported", "Import A"
 
     assert run_item("A", job) == ("Imported", True)
-    assert _committed_files(vault) == {"Papers/[CLS] A.md", ".papers.db"}
+    assert _committed_files(vault) == {"Papers/[CLS] A.md", "Papers/Shared.md"}
     assert "A  Unrelated.md" in _run(vault, "status", "--porcelain")
 
 
@@ -148,7 +148,7 @@ def test_run_item_commits_files_written_before_a_failure(vault):
 def test_git_push_rebases_and_aborts_on_conflict(vault, tmp_path):
     other = tmp_path / "other"
     _run(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(other))
-    (other / ".papers.db").write_text("laptop")
+    (other / "Papers" / "Shared.md").write_text("laptop")
     _run(other, "commit", "-qam", "laptop import")
     _run(other, "push", "-q")
 
@@ -157,18 +157,27 @@ def test_git_push_rebases_and_aborts_on_conflict(vault, tmp_path):
     assert git_push()  # rebased onto the laptop's commit
 
     _run(other, "pull", "-q")
-    (other / ".papers.db").write_text("laptop again")
+    (other / "Papers" / "Shared.md").write_text("laptop again")
     _run(other, "commit", "-qam", "laptop import 2")
     _run(other, "push", "-q")
-    (vault / ".papers.db").write_text("server")
-    assert git_commit([vault / ".papers.db"], "server import")
+    (vault / "Papers" / "Shared.md").write_text("server")
+    assert git_commit([vault / "Papers" / "Shared.md"], "server import")
     assert not git_push()
     assert not (vault / ".git" / "rebase-merge").exists()
     assert _run(vault, "rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
 
 
+def test_process_paper_skips_a_paper_whose_note_is_in_the_vault(vault, monkeypatch):
+    note = "---\ntitle: Attention Is All You Need\narxiv_id: '1706.03762'\n---\n"
+    (vault / "Papers" / "Attention.md").write_text(note)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("ran obsidian-import"))
+    assert process_paper("https://arxiv.org/abs/1706.03762", None, "tok", 1, 2) == (
+        "Already in the vault: Attention Is All You Need",
+        None,
+    )
+
+
 def test_process_paper_clips_the_link_when_the_paper_is_not_found(vault, monkeypatch):
-    monkeypatch.setattr(telegram_bot, "get_paper_title", lambda db_path, **ids: None)
     monkeypatch.setattr(telegram_bot, "analysis_enabled", lambda: False)
     real_run = subprocess.run
 

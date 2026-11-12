@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from argparse import ArgumentParser
 from datetime import date
 from pathlib import Path
@@ -17,9 +16,9 @@ from pathvalidate import sanitize_filename
 from rich.logging import RichHandler
 
 from arxivbot.arxiv_api import arxiv_abs_url, arxiv_pdf_url, fetch_arxiv_papers
-from arxivbot.constants import DB_PATH, DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
-from arxivbot.database import get_paper_title, init_db, upsert_paper
-from arxivbot.identifiers import dedup_keys, extract_arxiv_id, parse_paper_id, strip_arxiv_version
+from arxivbot.constants import DEFAULT_PAPER_TAGS, PAPERS_DIR, PDFS_DIR, S2_BATCH_SIZE, S2_FIELDS
+from arxivbot.identifiers import dedup_keys, parse_paper_id, strip_arxiv_version
+from arxivbot.paper_index import PaperIndex, split_frontmatter
 from arxivbot.s2_api import fetch_s2_batch
 from arxivbot.utils import inflect_day
 
@@ -115,29 +114,6 @@ _FRONTMATTER_KEY_ORDER = [
     "code", "page", "demo", "tags",
 ]
 
-# A frontmatter delimiter line: exactly '---', optionally followed by trailing
-# whitespace, matched as a whole line (never a '---' substring embedded in a
-# value or in the body — e.g. an em-dash rendered as '---' in an S2 tldr).
-_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*\r?$", re.MULTILINE)
-
-
-def _split_frontmatter(text: str) -> tuple[str, str] | None:
-    """Split note text into (frontmatter_text, body) on line-anchored '---' delimiters.
-
-    Requires the text to begin with a line that is exactly '---'. The
-    frontmatter ends at the next line that is exactly '---' (trailing
-    whitespace allowed). Returns None if the text does not start with such a
-    delimiter line, or if no closing delimiter line follows it.
-    """
-    open_match = _FRONTMATTER_DELIMITER_RE.match(text)
-    if open_match is None:
-        return None
-    close_match = _FRONTMATTER_DELIMITER_RE.search(text, open_match.end())
-    if close_match is None:
-        return None
-    return text[open_match.end() : close_match.start()], text[close_match.end() :]
-
-
 def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     """Additively merge new frontmatter fields into an existing Obsidian note.
 
@@ -146,7 +122,7 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     """
     text = note_path.read_text(encoding="utf-8")
 
-    split = _split_frontmatter(text)
+    split = split_frontmatter(text)
     if split is None:
         LOGGER.warning(f"Could not parse frontmatter in {note_path} — skipping update")
         return
@@ -178,44 +154,6 @@ def _update_existing_note(note_path: Path, new_fields: dict) -> None:
     new_frontmatter = yaml.dump(merged, sort_keys=False, allow_unicode=True, width=float("inf"))
     note_path.write_text("---\n" + new_frontmatter + "---" + body, encoding="utf-8")
     LOGGER.info(f"Updated frontmatter ({len(keys_to_add)} new keys) for {note_path.name}")
-
-
-def _build_arxiv_index(papers_dir: Path) -> dict[str, Path]:
-    """Build a mapping from normalized (versionless) arXiv ID to existing note path.
-
-    Scans all .md files once, extracting arXiv IDs from frontmatter (arxiv_id field
-    or link field). First match wins — if two files share the same arXiv ID, the
-    first one found is kept.
-    """
-    index: dict[str, Path] = {}
-    for md in papers_dir.glob("*.md"):
-        try:
-            text = md.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            LOGGER.warning(f"Skipping {md.name}: could not read file: {exc}")
-            continue
-        split = _split_frontmatter(text)
-        if split is None:
-            continue
-        frontmatter_text, _body = split
-        try:
-            fm = yaml.safe_load(frontmatter_text)
-        except yaml.YAMLError as exc:
-            LOGGER.warning(f"Skipping {md.name}: invalid YAML frontmatter: {exc}")
-            continue
-        if not isinstance(fm, dict):
-            continue
-        # Check arxiv_id field
-        aid = str(fm.get("arxiv_id", "") or "")
-        if aid:
-            index.setdefault(strip_arxiv_version(aid), md)
-            continue
-        # Fall back to extracting from link
-        link_arxiv_id = extract_arxiv_id(str(fm.get("link", "") or ""))
-        if link_arxiv_id:
-            index.setdefault(link_arxiv_id, md)
-    LOGGER.info(f"Built arXiv index: {len(index)} papers with arXiv IDs")
-    return index
 
 
 def write_obsidian_paper(
@@ -401,7 +339,7 @@ def fetch_papers_batch(paper_ids: list[str], api_key: str | None = None) -> tupl
 
 
 def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path] | None = None) -> None:
-    """Write an Obsidian note for a normalized paper dict, then upsert it into the DB."""
+    """Write an Obsidian note for a normalized paper dict."""
     pub_date = _parse_publication_date(paper["publication_date"])
 
     write_obsidian_paper(
@@ -422,40 +360,21 @@ def _process_paper(paper: dict, download_pdf: bool, arxiv_index: dict[str, Path]
         download_pdf=download_pdf,
         arxiv_index=arxiv_index,
     )
-    # After the note: a DB row without a note would make later runs skip the paper
-    upsert_paper(
-        DB_PATH,
-        paper_id=paper["paper_id"],
-        title=paper["title"],
-        authors=paper["authors"],
-        abstract=paper["abstract"],
-        publication_date=paper["publication_date"],
-        year=paper["year"],
-        arxiv_id=paper["arxiv_id"],
-        doi=paper["doi"],
-        venue=paper["venue"],
-        tldr=paper["tldr"],
-        s2_url=paper["s2_url"],
-        fields_of_study=paper["fields_of_study"],
-        citation_count=paper["citation_count"],
-        influential_citation_count=paper["influential_citation_count"],
-        open_access_pdf_url=paper["open_access_pdf_url"],
-    )
 
 
 def _query_id_fields(s2_id: str) -> dict[str, str]:
-    """Map an S2 query ID from parse_paper_id to the paper_id / arxiv_id / doi lookup fields of the local DB."""
+    """Map an S2 query ID from parse_paper_id to the paper_id / arxiv_id / doi fields of PaperIndex.find."""
     if s2_id.startswith("ARXIV:"):
         return {"arxiv_id": s2_id.removeprefix("ARXIV:")}
     if s2_id.startswith("DOI:"):
         return {"doi": s2_id.removeprefix("DOI:")}
     if s2_id.upper().startswith("CORPUSID:"):
-        return {}  # the DB does not store CorpusIDs
+        return {}  # notes do not record CorpusIDs
     return {"paper_id": s2_id}
 
 
 def _paper_keys(paper_id: str | None = None, arxiv_id: str | None = None, doi: str | None = None) -> list[str]:
-    """dedup_keys under the local DB's field names, so _query_id_fields output can be passed as **kwargs."""
+    """dedup_keys under PaperIndex.find's field names, so _query_id_fields output can be passed as **kwargs."""
     return dedup_keys(s2_id=paper_id, arxiv_id=arxiv_id, doi=doi)
 
 
@@ -483,7 +402,7 @@ def main():
     parser = ArgumentParser(description="Import papers to Obsidian vault via Semantic Scholar API")
     parser.add_argument("id_list", type=str, nargs="+", help="Paper identifiers (arXiv IDs/URLs, S2 IDs/URLs, DOIs)")
     parser.add_argument("--no_pdf", action="store_false", dest="download_pdf", help="Skip PDF download")
-    parser.add_argument("--force", action="store_true", help="Re-fetch papers even if already in local database")
+    parser.add_argument("--force", action="store_true", help="Re-fetch papers already in the vault")
     args = parser.parse_args()
 
     # Configure logging
@@ -503,14 +422,14 @@ def main():
         LOGGER.error(f"Cannot create {e.filename}: {e.strerror}. Check OBSIDIAN_VAULT_DIR.")
         raise SystemExit(1) from e
 
-    init_db(DB_PATH)
+    index = PaperIndex.build(PAPERS_DIR)
     api_key = _load_s2_api_key()
 
     # Phase 1: Parse all identifiers, collecting valid S2 IDs (deduplicated)
     s2_ids: list[str] = []
     raw_by_s2_id: dict[str, str] = {}  # s2_id -> first raw input (for error messages)
     raw_by_key: dict[str, str] = {}  # dedup key -> first raw input (to label fetched papers)
-    skipped_local: list[tuple[str, str]] = []  # (raw_id, stored title)
+    skipped_local: list[tuple[str, str]] = []  # (raw_id, title of the note already in the vault)
     for raw_id in args.id_list:
         try:
             s2_id = parse_paper_id(raw_id)
@@ -521,8 +440,8 @@ def main():
             LOGGER.warning(f"Skipping {raw_id!r}: resolves to same ID as {raw_by_s2_id[s2_id]!r}")
             continue
         query_fields = _query_id_fields(s2_id)
-        if not args.force and (title := get_paper_title(DB_PATH, **query_fields)) is not None:
-            skipped_local.append((raw_id, title))
+        if not args.force and (existing := index.find(**query_fields)) is not None:
+            skipped_local.append((raw_id, existing.title))
             continue
         s2_ids.append(s2_id)
         raw_by_s2_id[s2_id] = raw_id
@@ -531,11 +450,11 @@ def main():
 
     for raw_id, title in skipped_local:
         title_suffix = f" — \"{title}\"" if title else ""
-        LOGGER.info(f"Already in local database, skipping: {raw_id!r}{title_suffix} (use --force to re-fetch)")
+        LOGGER.info(f"Already in the vault, skipping: {raw_id!r}{title_suffix} (use --force to re-fetch)")
 
     if not s2_ids:
         if skipped_local:
-            LOGGER.info("All papers already in local database. Nothing to fetch.")
+            LOGGER.info("All papers already in the vault. Nothing to fetch.")
         else:
             LOGGER.error("No valid paper identifiers provided.")
         return
@@ -575,8 +494,8 @@ def main():
 
     papers = _drop_duplicate_papers(papers)
 
-    # Phase 3: Build arXiv index and process each fetched paper (DB upsert + Obsidian note)
-    arxiv_index = _build_arxiv_index(PAPERS_DIR)
+    # Phase 3: Write a note for each fetched paper, or update the note already filed under another name
+    arxiv_index = index.arxiv_paths()
     for paper in papers:
         raw_input = _find_raw_input(paper, raw_by_key)
         input_prefix = f"{raw_input!r} — " if raw_input else ""

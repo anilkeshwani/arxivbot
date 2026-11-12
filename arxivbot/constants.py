@@ -36,6 +36,3 @@ S2_FIELDS = [
 ]
 
 S2_BATCH_SIZE = 500  # Max IDs per POST /paper/batch request
-
-# Database
-DB_PATH = Path(os.environ.get("OBSIDIAN_DB_PATH", str(OBSIDIAN_VAULT_DIR / ".papers.db"))).expanduser().resolve()

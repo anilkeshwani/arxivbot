@@ -25,14 +25,13 @@ from arxivbot.constants import (
     CLIP_QUEUE_NOTE,
     CLIP_QUEUE_PATH,
     CLIPPINGS_DIR,
-    DB_PATH,
     OBSIDIAN_VAULT_DIR,
     PAPERS_DIR,
     PDFS_DIR,
 )
-from arxivbot.database import get_paper_title, init_db
 from arxivbot.identifiers import ARXIV_ID_RE, ARXIV_URL_RE, DOI_RE, S2_URL_RE, extract_dois, parse_paper_id
 from arxivbot.obsidian_importer import _query_id_fields
+from arxivbot.paper_index import PaperIndex
 from arxivbot.web_clipper import (
     USER_AGENT,
     ClipError,
@@ -54,7 +53,7 @@ QUEUE_MESSAGES_PATH = (
 )
 
 # Vault paths the bot writes to and commits (PDFs/ is not committed)
-VAULT_WRITE_PATHS = (PAPERS_DIR, DB_PATH, CLIPPINGS_DIR, CLIP_QUEUE_PATH, CLIP_QUEUE_NOTE)
+VAULT_WRITE_PATHS = (PAPERS_DIR, CLIPPINGS_DIR, CLIP_QUEUE_PATH, CLIP_QUEUE_NOTE)
 GIT_TIMEOUT = 120
 # How often the vault is pulled to take pages clipped elsewhere off the clip queue
 QUEUE_REFRESH_SECONDS = 3600
@@ -576,8 +575,8 @@ def process_paper(
     A paper neither Semantic Scholar nor arXiv knows is clipped from source_url instead, if it came from a link.
     Returns (status, commit message or None if nothing was written).
     """
-    if title := get_paper_title(DB_PATH, **_query_id_fields(parse_paper_id(paper_id))):
-        return f"Already in the vault: {title}", None
+    if existing := PaperIndex.build(PAPERS_DIR).find(**_query_id_fields(parse_paper_id(paper_id))):
+        return f"Already in the vault: {existing.title}", None
     analyze = analysis_enabled()
 
     # 1. Run obsidian-import (the PDF is only needed for the analysis)
@@ -888,7 +887,6 @@ def main() -> None:
     formatter = RedactingFormatter(token, "%(asctime)s %(levelname)s %(name)s: %(message)s", "%Y-%m-%d %H:%M:%S")
     for handler in logging.getLogger().handlers:
         handler.setFormatter(formatter)
-    init_db(DB_PATH)
     LOGGER.info(f"arxivbot-telegram started. Allowed chat IDs: {allowed_chat_ids}")
 
     offset = 0
